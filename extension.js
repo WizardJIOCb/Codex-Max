@@ -7057,6 +7057,58 @@ function getHtml(webview) {
       return true;
     }
 
+    function renderEventMessage(chatId, eventId) {
+      const chat = state.chats.find((item) => item.id === chatId);
+      const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+      if (!chat || !card || !eventId) {
+        return false;
+      }
+
+      const messages = card.querySelector(".messages");
+      const existingNode = messages
+        ? Array.from(messages.querySelectorAll("[data-message-id]")).find((node) => node.dataset.messageId === eventId)
+        : null;
+      const messageIndex = Array.isArray(chat.messages)
+        ? chat.messages.findIndex((message) => message.role === "event" && message.eventId === eventId)
+        : -1;
+      const message = messageIndex >= 0 ? chat.messages[messageIndex] : null;
+      if (!messages || !existingNode || !message) {
+        return false;
+      }
+
+      const wasExpanded = existingNode.classList.contains("expanded");
+      const previousScroll = captureSingleMessageScrollState(card);
+      const template = document.createElement("template");
+      template.innerHTML = renderMessage(message, chat, messageIndex).trim();
+      const nextNode = template.content.firstElementChild;
+      if (!nextNode) {
+        return false;
+      }
+
+      if (wasExpanded) {
+        nextNode.classList.add("expanded");
+        const summary = nextNode.querySelector(".eventSummary, .changeCard");
+        const toggle = nextNode.querySelector(".eventToggle, .changeAction");
+        if (summary) {
+          summary.setAttribute("aria-expanded", "true");
+        }
+        if (toggle) {
+          const title = nextNode.classList.contains("changeSummary") ? "Collapse changes" : "Collapse details";
+          toggle.setAttribute("title", title);
+          toggle.setAttribute("aria-label", title);
+        }
+      }
+
+      existingNode.replaceWith(nextNode);
+      bindMessageContentControls(nextNode);
+      const board = normalizeBoardSettings(state.boardSettings);
+      restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
+      refreshBoardUsage();
+      updateVoiceButtons();
+      syncDurationTimer();
+      return true;
+    }
+
     function captureSingleMessageScrollState(card) {
       const chatId = card && card.dataset ? card.dataset.chatId : "";
       const messages = card ? card.querySelector(".messages") : null;
@@ -7282,7 +7334,15 @@ function getHtml(webview) {
         bindMessageScrollControls(chat.id, messages);
       }
 
-      for (const summary of card.querySelectorAll(".eventSummary")) {
+      bindMessageContentControls(card);
+    }
+
+    function bindMessageContentControls(root) {
+      if (!root) {
+        return;
+      }
+
+      for (const summary of root.querySelectorAll(".eventSummary")) {
         summary.addEventListener("click", (event) => {
           const item = event.currentTarget.closest(".message.event");
           if (item) {
@@ -7302,7 +7362,7 @@ function getHtml(webview) {
         });
       }
 
-      for (const summary of card.querySelectorAll(".changeCard")) {
+      for (const summary of root.querySelectorAll(".changeCard")) {
         summary.addEventListener("click", (event) => {
           const item = event.currentTarget.closest(".message.changeSummary");
           if (item) {
@@ -7322,7 +7382,7 @@ function getHtml(webview) {
         });
       }
 
-      for (const link of card.querySelectorAll("[data-open-file]")) {
+      for (const link of root.querySelectorAll("[data-open-file]")) {
         link.addEventListener("click", (event) => {
           event.preventDefault();
           vscode.postMessage({
@@ -7332,7 +7392,7 @@ function getHtml(webview) {
         });
       }
 
-      for (const link of card.querySelectorAll("[data-open-url]")) {
+      for (const link of root.querySelectorAll("[data-open-url]")) {
         link.addEventListener("click", (event) => {
           event.preventDefault();
           vscode.postMessage({
@@ -7342,18 +7402,18 @@ function getHtml(webview) {
         });
       }
 
-      for (const preview of card.querySelectorAll("[data-image-path]")) {
+      for (const preview of root.querySelectorAll("[data-image-path]")) {
         requestImagePreview(preview);
       }
 
-      for (const preview of card.querySelectorAll("[data-image-open]")) {
+      for (const preview of root.querySelectorAll("[data-image-open]")) {
         preview.addEventListener("click", (event) => {
           event.preventDefault();
           openImageViewer(event.currentTarget);
         });
       }
 
-      for (const button of card.querySelectorAll("[data-copy-chat]")) {
+      for (const button of root.querySelectorAll("[data-copy-chat]")) {
         button.addEventListener("click", (event) => {
           event.preventDefault();
           copyMessageText(event.currentTarget);
@@ -9020,8 +9080,9 @@ function getHtml(webview) {
       if (item.role === "changeSummary") {
         const title = item.title || item.text || "Edited files";
         const detail = item.detail || "Updated";
+        const messageId = item.eventId ? ' data-message-id="' + escapeAttr(item.eventId) + '"' : "";
         return \`
-          <div class="message changeSummary">
+          <div class="message changeSummary"\${messageId}>
             <div class="changeCard" role="button" tabindex="0" aria-expanded="false" title="Toggle changed files">
               <span class="changeIcon">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -9051,11 +9112,12 @@ function getHtml(webview) {
         const title = item.title || item.text || "Codex event";
         const detail = item.detail || item.text || "";
         const preview = compactPreview(detail);
+        const messageId = item.eventId ? ' data-message-id="' + escapeAttr(item.eventId) + '"' : "";
         const eventDetail = item.kind === "files"
           ? renderChangeDetails(item)
           : (detail ? '<pre>' + escapeHtml(detail) + '</pre>' : '<div class="eventEmpty">No additional details</div>');
         return \`
-          <div class="message event \${escapeAttr(item.kind || "event")} \${escapeAttr(item.status || "info")}">
+          <div class="message event \${escapeAttr(item.kind || "event")} \${escapeAttr(item.status || "info")}"\${messageId}>
             <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle details">
               <span class="eventBadge">\${escapeHtml(eventBadge(item.kind, item.status))}</span>
               <span class="eventTitle">\${escapeHtml(title)}</span>
@@ -11672,8 +11734,10 @@ function getHtml(webview) {
         return;
       }
 
+      const renderOptions = { render: "event", eventId: "" };
       updateChat(chatId, (chat) => {
         const eventId = event.eventId ? String(event.eventId) : "";
+        renderOptions.eventId = eventId;
         const existing = eventId
           ? chat.messages.find((message) => message.role === "event" && message.eventId === eventId && message.status === "running")
           : null;
@@ -11702,7 +11766,7 @@ function getHtml(webview) {
         }
 
         chat.messages.push(next);
-      });
+      }, renderOptions);
     }
 
     function updateChat(chatId, updater, options) {
@@ -11725,6 +11789,8 @@ function getHtml(webview) {
       chat.updatedAt = Date.now();
       if (updateOptions.render === "chrome") {
         renderChatChrome(chatId);
+      } else if (updateOptions.render === "event" && updateOptions.eventId && renderEventMessage(chatId, updateOptions.eventId)) {
+        // Updated a single existing event in place.
       } else {
         scheduleChatCardRender(chatId);
       }
