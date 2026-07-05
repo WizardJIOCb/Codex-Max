@@ -135,7 +135,11 @@ class ChatBoardPanel {
 
     this.panel.webview.onDidReceiveMessage(
       async (message) => {
-        await this.handleMessage(message);
+        try {
+          await this.handleMessage(message);
+        } catch (error) {
+          this.handleMessageError(message, error);
+        }
       },
       null,
       this.disposables
@@ -167,7 +171,9 @@ class ChatBoardPanel {
     }
 
     if (message.type === "persist") {
-      await this.saveState(message.state);
+      this.saveState(message.state).catch((error) => {
+        console.warn("Codex Max could not persist state:", error);
+      });
       return;
     }
 
@@ -192,8 +198,19 @@ class ChatBoardPanel {
     }
 
     if (message.type === "sendPrompt") {
-      await this.saveState(message.state);
       this.runner.run(message.chatId, message.prompt, message.sessionId, message.settings, this, message.projectPath);
+      this.saveState(message.state).catch((error) => {
+        this.post({
+          type: "chatEvent",
+          chatId: message.chatId,
+          event: {
+            kind: "state",
+            status: "error",
+            title: "Could not save chat state",
+            detail: String(error && error.message || error || "")
+          }
+        });
+      });
       return;
     }
 
@@ -302,6 +319,20 @@ class ChatBoardPanel {
       await this.openExternal(message.url);
       return;
     }
+  }
+
+  handleMessageError(message, error) {
+    const detail = String(error && error.message || error || "Unknown error");
+    if (message && message.chatId) {
+      this.post({
+        type: "chatError",
+        chatId: message.chatId,
+        error: detail
+      });
+      return;
+    }
+
+    vscode.window.showWarningMessage(`Codex Max message failed: ${detail}`);
   }
 
   async openFile(filePath) {
