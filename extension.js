@@ -6776,6 +6776,19 @@ function getHtml(webview) {
       return normalizeChat(JSON.parse(JSON.stringify(chat || {})), 0, workspacePath || currentWorkspacePath());
     }
 
+    function applyChatSurface(value) {
+      const chatBackground = normalizeHexColor(value, "${DEFAULT_CHAT_BACKGROUND}");
+      document.documentElement.style.setProperty("--chatSurface", chatBackground);
+      app.style.setProperty("--chatSurface", chatBackground);
+      app.style.background = chatBackground;
+      const shell = app.querySelector(".shell");
+      if (shell) {
+        shell.style.setProperty("--chatSurface", chatBackground);
+        shell.style.background = chatBackground;
+      }
+      return chatBackground;
+    }
+
     function render(options) {
       const renderOptions = options && typeof options === "object" ? options : {};
       clearPendingChatRenders();
@@ -6796,9 +6809,7 @@ function getHtml(webview) {
       const localWhisperCaptureId = board.localWhisperCaptureId;
       const localWhisperStopGraceMs = board.localWhisperStopGraceMs;
 
-      document.documentElement.style.setProperty("--chatSurface", chatBackground);
-      app.style.setProperty("--chatSurface", chatBackground);
-      app.style.background = chatBackground;
+      applyChatSurface(chatBackground);
 
       app.innerHTML = \`
         <div class="shell" style="--chatSurface: \${escapeAttr(chatBackground)}; background: \${escapeAttr(chatBackground)};">
@@ -6859,6 +6870,14 @@ function getHtml(webview) {
       restoreBoardScroll(previousBoardScroll);
       updateVoiceButtons();
       syncDurationTimer();
+    }
+
+    function refreshBoardAfterSettingsChange() {
+      applyChatSurface(state.boardSettings.chatBackground);
+      refreshBoardGrid({ preserveBoardScroll: true });
+      if (activeChatInfoId) {
+        refreshChatInfoDialog(false);
+      }
     }
 
     function bindChatCards(previousScrollState, autoScroll) {
@@ -8284,7 +8303,7 @@ function getHtml(webview) {
           });
         }
         closeBoardSettings();
-        render();
+        refreshBoardAfterSettingsChange();
         persist();
       }
 
@@ -8707,7 +8726,7 @@ function getHtml(webview) {
       state.boardSettings = normalizeBoardSettings(Object.assign({}, state.boardSettings, {
         chatsPerRow: value
       }));
-      render();
+      refreshBoardAfterSettingsChange();
       persist();
       openBoardSettings();
     }
@@ -8716,7 +8735,7 @@ function getHtml(webview) {
       state.boardSettings = normalizeBoardSettings(Object.assign({}, state.boardSettings, {
         chatsPerColumn: value
       }));
-      render();
+      refreshBoardAfterSettingsChange();
       persist();
       openBoardSettings();
     }
@@ -8725,7 +8744,7 @@ function getHtml(webview) {
       state.boardSettings = normalizeBoardSettings(Object.assign({}, state.boardSettings, {
         maxChatHeight: value
       }));
-      render();
+      refreshBoardAfterSettingsChange();
       persist();
       openBoardSettings();
     }
@@ -9670,7 +9689,7 @@ function getHtml(webview) {
         workspace.path = currentWorkspacePathFromSettings(normalized.boardSettings);
         workspace.boardSettings = cloneBoardSettings(normalized.boardSettings);
       }
-      render({ preserveBoardScroll: true });
+      refreshBoardAfterSettingsChange();
       persist();
       showToast("Applied workspace preset" + (sourcePath ? " from " + sourcePath : "") + ".");
     }
