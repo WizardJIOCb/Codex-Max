@@ -281,6 +281,26 @@ class ChatBoardPanel {
       return;
     }
 
+    if (message.type === "exportWorkspaces") {
+      await this.exportWorkspaces(message.state);
+      return;
+    }
+
+    if (message.type === "importWorkspaces") {
+      await this.importWorkspaces();
+      return;
+    }
+
+    if (message.type === "exportWorkspacePreset") {
+      await this.exportWorkspacePreset(message.preset);
+      return;
+    }
+
+    if (message.type === "importWorkspacePreset") {
+      await this.importWorkspacePreset();
+      return;
+    }
+
     if (message.type === "sendPrompt") {
       await this.saveState(message.state);
       this.runner.run(message.chatId, message.prompt, message.sessionId, message.settings, this, message.projectPath);
@@ -1277,6 +1297,114 @@ class ChatBoardPanel {
     await this.context.workspaceState.update(STATE_KEY, trimmed);
   }
 
+  async exportWorkspaces(state) {
+    if (!state) {
+      return;
+    }
+
+    const payload = {
+      format: "codex-max.workspaces",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      state: trimStateForStorage(state)
+    };
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(getWorkspacePath() || os.homedir(), `codex-max-workspaces-${dateStamp()}.json`)),
+      filters: {
+        "Codex Max workspace export": ["json"]
+      },
+      saveLabel: "Export workspaces"
+    });
+    if (!uri) {
+      return;
+    }
+
+    await fs.promises.writeFile(uri.fsPath, JSON.stringify(payload, null, 2), "utf8");
+    vscode.window.showInformationMessage(`Codex Max workspaces exported to ${uri.fsPath}.`);
+  }
+
+  async importWorkspaces() {
+    const uri = await pickJsonFile("Import workspaces");
+    if (!uri) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(await fs.promises.readFile(uri.fsPath, "utf8"));
+      const importedState = payload && payload.format === "codex-max.workspaces" ? payload.state : payload;
+      if (!importedState || typeof importedState !== "object") {
+        throw new Error("Selected file does not contain Codex Max workspace state.");
+      }
+
+      const confirmed = await vscode.window.showWarningMessage(
+        "Importing Codex Max workspaces will replace the current board state in this VS Code workspace.",
+        { modal: true },
+        "Import"
+      );
+      if (confirmed !== "Import") {
+        return;
+      }
+
+      this.post({
+        type: "workspaceImport",
+        state: importedState,
+        path: uri.fsPath
+      });
+    } catch (error) {
+      vscode.window.showWarningMessage(`Codex Max could not import workspaces: ${error.message || error}`);
+    }
+  }
+
+  async exportWorkspacePreset(preset) {
+    if (!preset || typeof preset !== "object") {
+      return;
+    }
+
+    const payload = {
+      format: "codex-max.workspace-preset",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      preset
+    };
+    const name = safeFileName(preset.name || "workspace-preset");
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(getWorkspacePath() || os.homedir(), `codex-max-preset-${name}-${dateStamp()}.json`)),
+      filters: {
+        "Codex Max workspace preset": ["json"]
+      },
+      saveLabel: "Export preset"
+    });
+    if (!uri) {
+      return;
+    }
+
+    await fs.promises.writeFile(uri.fsPath, JSON.stringify(payload, null, 2), "utf8");
+    vscode.window.showInformationMessage(`Codex Max preset exported to ${uri.fsPath}.`);
+  }
+
+  async importWorkspacePreset() {
+    const uri = await pickJsonFile("Import preset");
+    if (!uri) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(await fs.promises.readFile(uri.fsPath, "utf8"));
+      const preset = payload && payload.format === "codex-max.workspace-preset" ? payload.preset : payload;
+      if (!preset || typeof preset !== "object") {
+        throw new Error("Selected file does not contain a Codex Max workspace preset.");
+      }
+
+      this.post({
+        type: "workspacePresetImport",
+        preset,
+        path: uri.fsPath
+      });
+    } catch (error) {
+      vscode.window.showWarningMessage(`Codex Max could not import preset: ${error.message || error}`);
+    }
+  }
+
   getClientConfig() {
     const cfg = vscode.workspace.getConfiguration("codexMax");
     return {
@@ -1574,6 +1702,49 @@ function normalizeSettings(settings) {
     sandbox: allowedSandbox.has(next.sandbox) ? next.sandbox : DEFAULT_CHAT_SETTINGS.sandbox,
     webSearch: allowedWebSearch.has(next.webSearch) ? next.webSearch : DEFAULT_CHAT_SETTINGS.webSearch
   };
+}
+
+function trimStateForStorage(state) {
+  const workspaces = Array.isArray(state && state.workspaces)
+    ? state.workspaces.map(trimWorkspaceForStorage).filter(Boolean)
+    : [];
+  const activeWorkspaceId = String(state && state.activeWorkspaceId || (workspaces[0] && workspaces[0].id) || "");
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || null;
+  const boardSettings = normalizeBoardSettings(state && state.boardSettings || activeWorkspace && activeWorkspace.boardSettings || {});
+  const chats = Array.isArray(state && state.chats)
+    ? state.chats.map(trimChatForStorage)
+    : (activeWorkspace ? activeWorkspace.chats : []);
+
+  return {
+    chats,
+    selectedChatId: state && state.selectedChatId ? String(state.selectedChatId) : (activeWorkspace && activeWorkspace.selectedChatId || null),
+    activeWorkspaceId,
+    workspaces,
+    accountRateLimits: normalizeRateLimits(state && state.accountRateLimits),
+    boardSettings
+  };
+}
+
+function dateStamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-").replace(/T/, "_").replace(/Z$/, "Z");
+}
+
+function safeFileName(value) {
+  return String(value || "preset").trim().replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-").replace(/\s+/g, "-").replace(/^-+|-+$/g, "") || "preset";
+}
+
+async function pickJsonFile(openLabel) {
+  const uris = await vscode.window.showOpenDialog({
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    filters: {
+      "JSON files": ["json"]
+    },
+    openLabel
+  });
+
+  return uris && uris.length ? uris[0] : null;
 }
 
 function normalizeModelId(value) {
@@ -5428,6 +5599,22 @@ function getHtml(webview) {
       cursor: pointer;
     }
 
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100vw - 36px));
+      z-index: 8;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      background: var(--card);
+      color: var(--fg);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     .modalBackdrop {
       position: fixed;
       inset: 0;
@@ -5703,6 +5890,12 @@ function getHtml(webview) {
     .actionRow button:disabled {
       opacity: 0.65;
       cursor: default;
+    }
+
+    .dualActions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
     }
 
     .heightControls input:disabled {
@@ -6086,6 +6279,16 @@ function getHtml(webview) {
         }
         render();
         persist();
+        return;
+      }
+
+      if (message.type === "workspaceImport") {
+        applyWorkspaceImport(message.state, message.path || "");
+        return;
+      }
+
+      if (message.type === "workspacePresetImport") {
+        applyWorkspacePreset(message.preset, message.path || "");
         return;
       }
 
@@ -7526,6 +7729,27 @@ function getHtml(webview) {
       });
       menu.appendChild(newButton);
 
+      const exportButton = document.createElement("button");
+      exportButton.type = "button";
+      exportButton.textContent = "Export workspaces";
+      exportButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        closeWorkspaceMenu();
+        syncActiveWorkspaceFromState();
+        vscode.postMessage({ type: "exportWorkspaces", state });
+      });
+      menu.appendChild(exportButton);
+
+      const importButton = document.createElement("button");
+      importButton.type = "button";
+      importButton.textContent = "Import workspaces";
+      importButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        closeWorkspaceMenu();
+        vscode.postMessage({ type: "importWorkspaces" });
+      });
+      menu.appendChild(importButton);
+
       const divider = document.createElement("div");
       divider.className = "workspaceMenuDivider";
       menu.appendChild(divider);
@@ -7649,6 +7873,21 @@ function getHtml(webview) {
           persist();
         });
       }
+    }
+
+    function showToast(message) {
+      const existing = document.querySelector(".toast");
+      if (existing) {
+        existing.remove();
+      }
+
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.textContent = String(message || "");
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.remove();
+      }, 4200);
     }
 
     function toggleEventDetails(item) {
@@ -7793,6 +8032,13 @@ function getHtml(webview) {
                 <label for="refreshRateLimits">Account limits</label>
                 <button id="refreshRateLimits" type="button">Refresh limits</button>
               </div>
+              <div class="fieldRow actionRow">
+                <label>Workspace preset</label>
+                <div class="dualActions">
+                  <button id="exportWorkspacePreset" type="button">Export</button>
+                  <button id="importWorkspacePreset" type="button">Import</button>
+                </div>
+              </div>
               <p class="modalHint">Rows control density. Enter sends by default; auto-scroll follows new replies only while you are already at the bottom.</p>
               <p class="modalHint">Browser voice input uses the browser Web Speech API. Local Whisper uses free multilingual ggml models and does not use the selected Codex model.</p>
             </div>
@@ -7876,9 +8122,11 @@ function getHtml(webview) {
       const chatBackgroundPicker = document.getElementById("chatBackgroundPicker");
       const resetChatBackground = document.getElementById("resetChatBackground");
       const refreshRateLimits = document.getElementById("refreshRateLimits");
+      const exportWorkspacePreset = document.getElementById("exportWorkspacePreset");
+      const importWorkspacePreset = document.getElementById("importWorkspacePreset");
       const codexStatusCard = document.getElementById("codexStatusCard");
 
-      if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !codexStatusCard) {
+      if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard) {
         return;
       }
 
@@ -8028,6 +8276,16 @@ function getHtml(webview) {
           refreshRateLimits.disabled = false;
           refreshRateLimits.textContent = "Refresh limits";
         }, 5000);
+      });
+
+      exportWorkspacePreset.addEventListener("click", () => {
+        const preset = currentWorkspacePreset();
+        preset.boardSettings = normalizeBoardSettings(draft);
+        vscode.postMessage({ type: "exportWorkspacePreset", preset });
+      });
+
+      importWorkspacePreset.addEventListener("click", () => {
+        vscode.postMessage({ type: "importWorkspacePreset" });
       });
 
       codexStatusCard.addEventListener("click", (event) => {
@@ -9427,6 +9685,51 @@ function getHtml(webview) {
       chatStickyScroll = new Set();
       render();
       persist();
+    }
+
+    function applyWorkspaceImport(importedState, sourcePath) {
+      state = normalizeState(importedState || {});
+      syncActiveWorkspaceFromState();
+      activeChatInfoId = null;
+      chatScrollState = new Map();
+      chatAutoScrollPaused = new Set();
+      chatPausedScrollTop = new Map();
+      chatStickyScroll = new Set();
+      render();
+      persist();
+      showToast("Imported Codex Max workspaces" + (sourcePath ? " from " + sourcePath : "") + ".");
+    }
+
+    function applyWorkspacePreset(preset, sourcePath) {
+      const normalized = normalizeWorkspacePreset(preset || {});
+      state.boardSettings = cloneBoardSettings(normalized.boardSettings);
+      const workspace = activeWorkspaceProfile();
+      if (workspace) {
+        workspace.name = normalized.name || workspace.name;
+        workspace.path = currentWorkspacePathFromSettings(normalized.boardSettings);
+        workspace.boardSettings = cloneBoardSettings(normalized.boardSettings);
+      }
+      render({ preserveBoardScroll: true });
+      persist();
+      showToast("Applied workspace preset" + (sourcePath ? " from " + sourcePath : "") + ".");
+    }
+
+    function currentWorkspacePreset() {
+      const workspace = activeWorkspaceProfile();
+      return {
+        name: workspace && workspace.name ? workspace.name : "Workspace preset",
+        projectName: projectFolderName(currentWorkspacePath()) || "",
+        boardSettings: cloneBoardSettings(state.boardSettings)
+      };
+    }
+
+    function normalizeWorkspacePreset(preset) {
+      const boardSettings = normalizeBoardSettings(preset && preset.boardSettings || preset || {});
+      return {
+        name: String(preset && preset.name || "Workspace preset"),
+        projectName: String(preset && preset.projectName || ""),
+        boardSettings
+      };
     }
 
     function removeChat(chatId) {

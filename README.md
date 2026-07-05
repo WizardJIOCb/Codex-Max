@@ -53,6 +53,8 @@ Codex Max has its own workspace switcher in the board toolbar. A Codex Max works
 - Each chat title includes the current project folder name in square brackets, for example `Codex chat 1 [codex.max]`.
 - In `Chat information`, `Chat project` is the folder used for that chat, while `Current workspace` is the active VS Code workspace folder. You can choose a project manually or use the current workspace.
 - Workspace-specific settings are saved independently, including rows, columns, max chat height, background color, and voice settings.
+- The workspace dropdown can export/import all Codex Max workspaces as JSON, including chats, messages, selected projects, and board settings.
+- Board Settings can export/import a workspace preset. Presets contain layout, background, send behavior, auto-scroll, voice, and Local Whisper settings, but they do not include chat history.
 
 ## Voice Input
 
