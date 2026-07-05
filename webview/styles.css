@@ -361,16 +361,6 @@ select {
   animation: messageEnter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.message.assistant.newMessage,
-.message.activity.newMessage,
-.message.event.newMessage,
-.message.changeSummary.newMessage {
-  animation-name: messageEnter, messageSoftGlow;
-  animation-duration: 420ms, 900ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-out;
-  animation-fill-mode: both, both;
-}
-
 .message.assistant.typingMessage::after {
   content: "";
   display: inline-block;
@@ -393,18 +383,6 @@ select {
     opacity: 1;
     transform: translateY(0);
     filter: blur(0);
-  }
-}
-
-@keyframes messageSoftGlow {
-  0% {
-    box-shadow: 0 0 0 0 rgba(196, 196, 196, 0);
-  }
-  35% {
-    box-shadow: 0 0 0 1px rgba(196, 196, 196, 0.08), 0 8px 22px rgba(0, 0, 0, 0.14);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(196, 196, 196, 0);
   }
 }
 
