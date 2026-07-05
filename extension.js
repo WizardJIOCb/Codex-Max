@@ -1,10 +1,21 @@
 const vscode = require("vscode");
-const cp = require("child_process");
 const fs = require("fs");
-const https = require("https");
 const os = require("os");
 const path = require("path");
 const { getHtml: renderWebviewHtml } = require("./webview/html");
+const {
+  currentPlatformKey,
+  getWhisperRuntimeDescriptor,
+  normalizeCaptureId,
+  platformDisplayName,
+  resolveCodexExecutable,
+  resolveWhisperRuntimeExecutable,
+  runExternalCommand,
+  spawnExternalProcess,
+  stripQuotes
+} = require("./lib/platform");
+const { downloadFile, extractRuntimeArchive, fileExists } = require("./lib/file-utils");
+const { quoteShellArg, requestAppServer, runCodexCommand, stripAnsi } = require("./lib/codex-cli");
 const { version: EXTENSION_VERSION } = require("./package.json");
 
 const VIEW_TYPE = "codexMax.chatBoard";
@@ -101,7 +112,7 @@ for (const runtime of Object.values(WHISPER_RUNTIME_BY_PLATFORM)) {
   runtime.url = `${WHISPER_RUNTIME_BASE_URL}/${runtime.archiveName}`;
 }
 
-const WHISPER_RUNTIME = getWhisperRuntimeDescriptor();
+const WHISPER_RUNTIME = getWhisperRuntimeDescriptor(WHISPER_RUNTIME_BY_PLATFORM);
 
 const LOCAL_WHISPER_MODELS = [
   {
@@ -653,15 +664,15 @@ class ChatBoardPanel {
   }
 
   whisperRuntimePath() {
-    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "cli");
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "cli", WHISPER_RUNTIME);
   }
 
   whisperStreamPath() {
-    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "stream");
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "stream", WHISPER_RUNTIME);
   }
 
   whisperBenchPath() {
-    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "bench");
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "bench", WHISPER_RUNTIME);
   }
 
   whisperModelPath(model) {
@@ -1945,411 +1956,6 @@ function tomlString(value) {
   return JSON.stringify(String(value));
 }
 
-function resolveCodexExecutable(configured) {
-  const wantsAuto = !configured || configured === "codex";
-  const configuredPath = wantsAuto ? "" : stripQuotes(configured);
-
-  if (configuredPath) {
-    return {
-      command: configuredPath,
-      shell: shouldUseShell(configuredPath)
-    };
-  }
-
-  for (const candidate of getCodexCandidates()) {
-    if (candidate && fs.existsSync(candidate)) {
-      return {
-        command: candidate,
-        shell: shouldUseShell(candidate)
-      };
-    }
-  }
-
-  return {
-    command: "codex",
-    shell: process.platform === "win32"
-  };
-}
-
-function getCodexCandidates() {
-  const candidates = [];
-
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA;
-    if (appData) {
-      candidates.push(path.join(appData, "npm", "codex.cmd"));
-      candidates.push(path.join(appData, "npm", "codex"));
-    }
-
-    candidates.push(...getBundledCodexCandidates());
-  } else {
-    const home = os.homedir();
-    candidates.push(path.join(home, ".npm-global", "bin", "codex"));
-    candidates.push("/usr/local/bin/codex");
-    candidates.push("/opt/homebrew/bin/codex");
-  }
-
-  return candidates;
-}
-
-function getBundledCodexCandidates() {
-  const extensionRoots = [];
-  const home = os.homedir();
-
-  if (home) {
-    extensionRoots.push(path.join(home, ".vscode", "extensions"));
-    extensionRoots.push(path.join(home, ".cursor", "extensions"));
-    extensionRoots.push(path.join(home, ".windsurf", "extensions"));
-  }
-
-  const candidates = [];
-
-  for (const root of extensionRoots) {
-    if (!root || !fs.existsSync(root)) {
-      continue;
-    }
-
-    let entries = [];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !entry.name.startsWith("openai.chatgpt-")) {
-        continue;
-      }
-
-      candidates.push(path.join(root, entry.name, "bin", "windows-x86_64", "codex.exe"));
-    }
-  }
-
-  return candidates;
-}
-
-function getSpawnEnv() {
-  const env = Object.assign({}, process.env);
-
-  if (process.platform !== "win32") {
-    return env;
-  }
-
-  const appData = env.APPDATA;
-  if (!appData) {
-    return env;
-  }
-
-  const npmBin = path.join(appData, "npm");
-  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") || "Path";
-  const currentPath = env[pathKey] || "";
-
-  if (!currentPath.toLowerCase().split(";").includes(npmBin.toLowerCase())) {
-    env[pathKey] = `${npmBin};${currentPath}`;
-  }
-
-  return env;
-}
-
-function shouldUseShell(command) {
-  return process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
-}
-
-function currentPlatformKey() {
-  return `${process.platform}-${process.arch}`;
-}
-
-function platformDisplayName() {
-  if (process.platform === "win32") {
-    return `Windows ${process.arch}`;
-  }
-  if (process.platform === "darwin") {
-    return `macOS ${process.arch}`;
-  }
-  if (process.platform === "linux") {
-    return `Linux ${process.arch}`;
-  }
-  return `${process.platform} ${process.arch}`;
-}
-
-function getWhisperRuntimeDescriptor() {
-  const platformKey = currentPlatformKey();
-  const runtime = WHISPER_RUNTIME_BY_PLATFORM[platformKey];
-  if (runtime) {
-    return Object.assign({}, runtime, {
-      platformKey,
-      supported: true
-    });
-  }
-
-  const isMac = process.platform === "darwin";
-  return {
-    id: `whisper.cpp-${platformKey}`,
-    label: `whisper.cpp ${platformDisplayName()}`,
-    platform: platformDisplayName(),
-    platformKey,
-    archiveName: "",
-    archiveType: "",
-    url: "",
-    executable: ["runtime", process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"],
-    streamExecutable: ["runtime", process.platform === "win32" ? "whisper-stream.exe" : "whisper-stream"],
-    benchExecutable: ["runtime", process.platform === "win32" ? "whisper-bench.exe" : "whisper-bench"],
-    cliNames: [process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"],
-    streamNames: [process.platform === "win32" ? "whisper-stream.exe" : "whisper-stream"],
-    benchNames: [process.platform === "win32" ? "whisper-bench.exe" : "whisper-bench"],
-    supported: false,
-    reason: isMac
-      ? "Automatic whisper.cpp CLI runtime install is not available for macOS yet; the upstream release provides an xcframework, not the CLI binaries Codex Max needs."
-      : `Automatic whisper.cpp runtime install is not available for ${platformDisplayName()} yet.`
-  };
-}
-
-function resolveWhisperRuntimeExecutable(root, kind) {
-  const runtimeDir = path.join(root, "runtime");
-  const fallbackKey = kind === "stream" ? "streamExecutable" : kind === "bench" ? "benchExecutable" : "executable";
-  const namesKey = kind === "stream" ? "streamNames" : kind === "bench" ? "benchNames" : "cliNames";
-  const fallback = path.join(root, ...(WHISPER_RUNTIME[fallbackKey] || WHISPER_RUNTIME.executable || []));
-  const found = findFirstExistingFile(runtimeDir, WHISPER_RUNTIME[namesKey] || []);
-  return found || fallback;
-}
-
-function findFirstExistingFile(root, names) {
-  if (!root || !fs.existsSync(root) || !Array.isArray(names) || !names.length) {
-    return "";
-  }
-
-  const wanted = new Set(names.map((name) => String(name).toLowerCase()));
-  const queue = [{ dir: root, depth: 0 }];
-  while (queue.length) {
-    const current = queue.shift();
-    if (!current || current.depth > 5) {
-      continue;
-    }
-
-    let entries = [];
-    try {
-      entries = fs.readdirSync(current.dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      const fullPath = path.join(current.dir, entry.name);
-      if (entry.isFile() && wanted.has(entry.name.toLowerCase())) {
-        return fullPath;
-      }
-      if (entry.isDirectory()) {
-        queue.push({ dir: fullPath, depth: current.depth + 1 });
-      }
-    }
-  }
-
-  return "";
-}
-
-function normalizeExecutable(value) {
-  if (value && typeof value === "object") {
-    return {
-      command: String(value.command || ""),
-      shell: typeof value.shell === "boolean" ? value.shell : shouldUseShell(value.command || "")
-    };
-  }
-
-  const command = String(value || "");
-  return {
-    command,
-    shell: shouldUseShell(command)
-  };
-}
-
-function spawnExternalProcess(executable, args, options) {
-  const normalized = normalizeExecutable(executable);
-  const spawnOptions = options || {};
-  const env = Object.assign({}, getSpawnEnv(), spawnOptions.env || {});
-  return cp.spawn(normalized.command, Array.isArray(args) ? args : [], {
-    cwd: spawnOptions.cwd,
-    shell: typeof spawnOptions.shell === "boolean" ? spawnOptions.shell : normalized.shell,
-    windowsHide: true,
-    stdio: spawnOptions.stdio || ["ignore", "pipe", "pipe"],
-    env
-  });
-}
-
-function runExternalCommand(executable, args, options) {
-  const runOptions = options || {};
-  const normalized = normalizeExecutable(executable);
-  const commandArgs = Array.isArray(args) ? args : [];
-  const timeoutMs = Number.isFinite(Number(runOptions.timeoutMs)) ? Number(runOptions.timeoutMs) : 5000;
-
-  return new Promise((resolve, reject) => {
-    const child = spawnExternalProcess(normalized, commandArgs, {
-      cwd: runOptions.cwd,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      finish(new Error(`Timed out running ${normalized.command} ${commandArgs.join(" ")}.`));
-    }, timeoutMs);
-
-    const finish = (error, result) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timeout);
-      if (error) {
-        try {
-          child.kill();
-        } catch {
-          // Process may have already exited.
-        }
-        reject(error);
-        return;
-      }
-      resolve(result);
-    };
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", (error) => {
-      finish(error);
-    });
-    child.on("close", (code, signal) => {
-      finish(null, { code, signal, stdout, stderr, timedOut });
-    });
-  });
-}
-
-function stripQuotes(value) {
-  return String(value).replace(/^["']|["']$/g, "");
-}
-
-function normalizeCaptureId(value) {
-  const number = Number.parseInt(value, 10);
-  return Number.isFinite(number) ? number : -1;
-}
-
-async function fileExists(filePath) {
-  try {
-    await fs.promises.access(filePath, fs.constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function downloadFile(url, destination, onProgress, redirectCount) {
-  const redirects = Number(redirectCount || 0);
-  if (redirects > 5) {
-    return Promise.reject(new Error("Too many redirects while downloading."));
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = https.get(url, {
-      headers: {
-        "User-Agent": "Codex-Max"
-      }
-    }, (response) => {
-      const status = response.statusCode || 0;
-      if (status >= 300 && status < 400 && response.headers.location) {
-        response.resume();
-        const nextUrl = new URL(response.headers.location, url).toString();
-        downloadFile(nextUrl, destination, onProgress, redirects + 1).then(resolve, reject);
-        return;
-      }
-
-      if (status < 200 || status >= 300) {
-        response.resume();
-        reject(new Error(`Download failed with HTTP ${status}.`));
-        return;
-      }
-
-      const total = Number(response.headers["content-length"] || 0);
-      let received = 0;
-      const file = fs.createWriteStream(destination);
-      response.on("data", (chunk) => {
-        received += chunk.length;
-        if (total && typeof onProgress === "function") {
-          onProgress(Math.max(0, Math.min(100, Math.round((received / total) * 100))));
-        }
-      });
-      response.pipe(file);
-      file.on("finish", () => {
-        file.close(() => {
-          if (typeof onProgress === "function") {
-            onProgress(100);
-          }
-          resolve();
-        });
-      });
-      file.on("error", reject);
-    });
-
-    request.on("error", reject);
-  });
-}
-
-function extractRuntimeArchive(archivePath, destination, runtime) {
-  if (!runtime || !runtime.supported) {
-    return Promise.reject(new Error(runtime && runtime.reason ? runtime.reason : "This whisper.cpp runtime is not supported on the current platform."));
-  }
-  if (runtime.archiveType === "zip") {
-    return extractZipArchive(archivePath, destination);
-  }
-  if (runtime.archiveType === "tar.gz") {
-    return extractTarGzArchive(archivePath, destination);
-  }
-  return Promise.reject(new Error(`Unsupported whisper.cpp archive type: ${runtime.archiveType || "unknown"}.`));
-}
-
-function extractZipArchive(zipPath, destination) {
-  return new Promise((resolve, reject) => {
-    if (process.platform !== "win32") {
-      reject(new Error("Zip extraction for whisper.cpp runtime is currently implemented through Windows PowerShell."));
-      return;
-    }
-
-    const script = `Expand-Archive -LiteralPath ${powershellSingleQuote(zipPath)} -DestinationPath ${powershellSingleQuote(destination)} -Force`;
-    const child = spawnExternalProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stderr = "";
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(stderr.trim() || `Expand-Archive failed with exit code ${code}.`));
-      }
-    });
-  });
-}
-
-function extractTarGzArchive(archivePath, destination) {
-  return runExternalCommand("tar", ["-xzf", archivePath, "-C", destination], {
-    timeoutMs: 120000
-  }).then((result) => {
-    if (result.code !== 0) {
-      throw new Error(result.stderr.trim() || `tar exited with code ${result.code}.`);
-    }
-  });
-}
-
-function powershellSingleQuote(value) {
-  return `'${String(value).replace(/'/g, "''")}'`;
-}
-
 function listCaptureDevices() {
   return new Promise((resolve) => {
     if (process.platform !== "win32") {
@@ -2614,124 +2220,6 @@ function cleanWhisperRuntimeError(value) {
     .filter((line) => line && !/^load_backend:/i.test(line) && !/^ggml_/i.test(line))
     .slice(-4)
     .join(" ");
-}
-
-function stripAnsi(value) {
-  return String(value || "").replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
-}
-
-function requestAppServer(executable, method, params) {
-  return new Promise((resolve, reject) => {
-    const child = spawnExternalProcess(executable, ["app-server", "--stdio"], {
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    let settled = false;
-    let initialized = false;
-    const timeout = setTimeout(() => {
-      finish(new Error(`Timed out waiting for ${method}.`));
-    }, 10000);
-
-    const finish = (error, result) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timeout);
-      child.kill();
-      if (error) {
-        reject(error);
-      } else {
-        resolve(result);
-      }
-    };
-
-    const send = (id, requestMethod, requestParams) => {
-      child.stdin.write(JSON.stringify({
-        jsonrpc: "2.0",
-        id,
-        method: requestMethod,
-        params: requestParams || {}
-      }) + "\n");
-    };
-
-    const handleLine = (line) => {
-      if (!line.trim()) {
-        return;
-      }
-
-      let message;
-      try {
-        message = JSON.parse(line);
-      } catch {
-        return;
-      }
-
-      if (message.id === 1 && message.result && !initialized) {
-        initialized = true;
-        send(2, method, params);
-        return;
-      }
-
-      if (message.id === 2) {
-        if (message.error) {
-          finish(new Error(message.error.message || JSON.stringify(message.error)));
-          return;
-        }
-        finish(null, message.result);
-      }
-    };
-
-    child.stdout.on("data", (chunk) => {
-      stdoutBuffer += chunk.toString("utf8");
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() || "";
-      for (const line of lines) {
-        handleLine(line);
-      }
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderrBuffer += chunk.toString("utf8");
-    });
-
-    child.on("error", (error) => {
-      finish(error);
-    });
-
-    child.on("close", () => {
-      if (!settled) {
-        finish(new Error(stderrBuffer.trim() || `${method} did not return a response.`));
-      }
-    });
-
-    send(1, "initialize", {
-      clientInfo: {
-        name: "codex-max",
-        version: "local"
-      },
-      capabilities: {}
-    });
-  });
-}
-
-function runCodexCommand(executable, args, timeoutMs) {
-  return runExternalCommand(executable, args, {
-    timeoutMs: timeoutMs || 5000
-  });
-}
-
-function quoteShellArg(value) {
-  const text = String(value || "");
-  if (!text) {
-    return "\"\"";
-  }
-  if (/^[A-Za-z0-9_./:-]+$/.test(text)) {
-    return text;
-  }
-  return `"${text.replace(/"/g, '\\"')}"`;
 }
 
 function normalizeIncomingFilePath(value) {
