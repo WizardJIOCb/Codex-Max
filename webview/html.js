@@ -8,6 +8,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const markdownUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "markdown.js"));
   const imagePreviewUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "image-preview.js"));
   const chatInfoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-info.js"));
+  const boardSettingsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-settings.js"));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "main.js"));
   const bootstrapJson = JSON.stringify(bootstrap || {}).replace(/</g, "\\u003c");
 
@@ -28,6 +29,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${markdownUri}"></script>
   <script nonce="${nonce}" src="${imagePreviewUri}"></script>
   <script nonce="${nonce}" src="${chatInfoUri}"></script>
+  <script nonce="${nonce}" src="${boardSettingsUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
