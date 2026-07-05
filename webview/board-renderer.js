@@ -13,6 +13,7 @@ function applyChatSurface(value) {
 }
 
 function render(options) {
+  countRenderStat("board");
   const renderOptions = options && typeof options === "object" ? options : {};
   clearPendingChatRenders();
   closeSelectMenu();
@@ -59,6 +60,7 @@ function render(options) {
 }
 
 function renderBoardGrid(boardSettings) {
+  countRenderStat("boardGrid");
   const board = normalizeBoardSettings(boardSettings || state.boardSettings);
   const chatCount = state.chats.length;
   if (!chatCount) {

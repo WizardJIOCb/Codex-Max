@@ -1,5 +1,6 @@
 // Toolbar rendering and board usage refresh controls. Loaded before main.js.
 function renderToolbar() {
+  countRenderStat("toolbar");
   const chatCount = state.chats.length;
   const overLimit = chatCount > config.maxVisibleChats;
   const usage = boardUsageInfo(state.chats, state.accountRateLimits);
@@ -85,6 +86,7 @@ function refreshBoardUsage() {
 }
 
 function refreshBoardUsageNow() {
+  countRenderStat("usage");
   const usageNode = document.querySelector(".boardUsage");
   if (!usageNode) {
     return;

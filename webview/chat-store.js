@@ -199,6 +199,7 @@ function persist() {
 }
 
 function persistNow() {
+  countRenderStat("persistFlushes");
   if (pendingPersistTimer) {
     clearTimeout(pendingPersistTimer);
     pendingPersistTimer = 0;

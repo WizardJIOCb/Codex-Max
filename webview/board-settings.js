@@ -118,6 +118,9 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
               <button id="importWorkspacePreset" type="button">Import</button>
             </div>
           </div>
+          <div id="renderStatsCard" class="renderStatsCard">
+            ${renderRenderStats()}
+          </div>
           <p class="modalHint">Rows control density. Enter sends by default; auto-scroll follows new replies only while you are already at the bottom.</p>
           <p class="modalHint">Browser voice input uses the browser Web Speech API. Local Whisper uses free multilingual ggml models and does not use the selected Codex model.</p>
         </div>
@@ -177,6 +180,44 @@ function renderCodexStatus() {
   `;
 }
 
+function renderRenderStats() {
+  const stats = renderStats || createRenderStats();
+  const elapsed = Math.max(0, Date.now() - Number(stats.startedAt || Date.now()));
+  return `
+    <div class="renderStatsHeader">
+      <div>
+        <strong>Render stats</strong>
+        <span>${escapeHtml(formatDuration(elapsed))}</span>
+      </div>
+      <button id="resetRenderStats" type="button">Reset</button>
+    </div>
+    <div class="renderStatsGrid">
+      ${renderRenderStat("Board", stats.board)}
+      ${renderRenderStat("Grid", stats.boardGrid)}
+      ${renderRenderStat("Cards", stats.chatCard)}
+      ${renderRenderStat("Chrome", stats.chatChrome)}
+      ${renderRenderStat("Messages", stats.chatMessages)}
+      ${renderRenderStat("Reused", stats.messageNodesReused)}
+      ${renderRenderStat("Created", stats.messageNodesCreated)}
+      ${renderRenderStat("Usage", stats.usage)}
+      ${renderRenderStat("Batches", stats.incomingBatches)}
+      ${renderRenderStat("Events", stats.incomingMessages)}
+      ${renderRenderStat("Persists", stats.persistFlushes)}
+    </div>
+  `;
+}
+
+function renderRenderStat(label, value) {
+  return '<div><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(String(Number(value || 0))) + '</strong></div>';
+}
+
+function refreshRenderStatsPanel() {
+  const card = document.getElementById("renderStatsCard");
+  if (card) {
+    card.innerHTML = renderRenderStats();
+  }
+}
+
 function bindBoardSettingsDialog() {
   const modal = document.getElementById("boardSettingsModal");
   const closeButton = document.getElementById("closeBoardSettings");
@@ -204,8 +245,9 @@ function bindBoardSettingsDialog() {
   const exportWorkspacePreset = document.getElementById("exportWorkspacePreset");
   const importWorkspacePreset = document.getElementById("importWorkspacePreset");
   const codexStatusCard = document.getElementById("codexStatusCard");
+  const renderStatsCard = document.getElementById("renderStatsCard");
 
-  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard) {
+  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !renderStatsCard) {
     return;
   }
 
@@ -365,6 +407,13 @@ function bindBoardSettingsDialog() {
 
   importWorkspacePreset.addEventListener("click", () => {
     vscode.postMessage({ type: "importWorkspacePreset" });
+  });
+
+  renderStatsCard.addEventListener("click", (event) => {
+    const resetButton = event.target.closest("#resetRenderStats");
+    if (resetButton) {
+      resetRenderStats();
+    }
   });
 
   codexStatusCard.addEventListener("click", (event) => {

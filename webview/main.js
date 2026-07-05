@@ -55,6 +55,7 @@ let pendingIncomingChatFrame = 0;
 let chatUpdateBatchDepth = 0;
 let batchedChatRenderModes = new Map();
 let batchedPersistNeeded = false;
+let pendingRenderStatsFrame = 0;
 let rateLimitsRequestedOnce = false;
 let voiceRecognition = null;
 let voiceChatId = "";
@@ -70,6 +71,7 @@ let whisperPrewarmState = null;
 let codexStatus = null;
 let codexStatusLoading = false;
 let microphonePermissionNotice = "";
+let renderStats = createRenderStats();
 
 window.addEventListener("error", (event) => {
   showFatal(event.error || event.message || "Unknown webview error");
@@ -89,3 +91,50 @@ window.addEventListener("beforeunload", () => {
     persistNow();
   }
 });
+
+function createRenderStats() {
+  return {
+    startedAt: Date.now(),
+    board: 0,
+    boardGrid: 0,
+    chatCard: 0,
+    chatChrome: 0,
+    chatMessages: 0,
+    messageNodesCreated: 0,
+    messageNodesReused: 0,
+    toolbar: 0,
+    usage: 0,
+    incomingBatches: 0,
+    incomingMessages: 0,
+    persistFlushes: 0
+  };
+}
+
+function countRenderStat(key, amount) {
+  if (!renderStats || !Object.prototype.hasOwnProperty.call(renderStats, key)) {
+    return;
+  }
+
+  renderStats[key] += Number.isFinite(Number(amount)) ? Number(amount) : 1;
+  scheduleRenderStatsPanelRefresh();
+}
+
+function resetRenderStats() {
+  renderStats = createRenderStats();
+  if (pendingRenderStatsFrame) {
+    cancelAnimationFrame(pendingRenderStatsFrame);
+    pendingRenderStatsFrame = 0;
+  }
+  refreshRenderStatsPanel();
+}
+
+function scheduleRenderStatsPanelRefresh() {
+  if (pendingRenderStatsFrame || !document.getElementById("renderStatsCard")) {
+    return;
+  }
+
+  pendingRenderStatsFrame = requestAnimationFrame(() => {
+    pendingRenderStatsFrame = 0;
+    refreshRenderStatsPanel();
+  });
+}

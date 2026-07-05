@@ -330,6 +330,8 @@ function flushIncomingChatMessages() {
 
   const messages = pendingIncomingChatMessages;
   pendingIncomingChatMessages = [];
+  countRenderStat("incomingBatches");
+  countRenderStat("incomingMessages", messages.length);
   withBatchedChatUpdates(() => {
     for (const message of messages) {
       applyIncomingChatMessage(message);

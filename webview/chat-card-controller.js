@@ -47,6 +47,7 @@ function flushChatCardRenders() {
 }
 
 function renderChatCard(chatId, options) {
+  countRenderStat("chatCard");
   const renderOptions = options && typeof options === "object" ? options : {};
   const chat = state.chats.find((item) => item.id === chatId);
   const card = document.querySelector('[data-chat-id="' + chatId + '"]');
@@ -75,6 +76,7 @@ function renderChatCard(chatId, options) {
 }
 
 function renderChatChrome(chatId) {
+  countRenderStat("chatChrome");
   const chat = state.chats.find((item) => item.id === chatId);
   const card = document.querySelector('[data-chat-id="' + chatId + '"]');
   if (!chat || !card) {
@@ -103,6 +105,7 @@ function renderChatChrome(chatId) {
 }
 
 function renderChatMessagesPanel(chatId, options) {
+  countRenderStat("chatMessages");
   const renderOptions = options && typeof options === "object" ? options : {};
   const chat = state.chats.find((item) => item.id === chatId);
   const card = document.querySelector('[data-chat-id="' + chatId + '"]');
@@ -129,15 +132,19 @@ function renderChatMessagesPanel(chatId, options) {
   const template = document.createElement("template");
   template.innerHTML = renderChatMessages(chat);
   const fragment = document.createDocumentFragment();
+  let reused = 0;
+  let created = 0;
   for (const nextNode of Array.from(template.content.children)) {
     const key = nextNode.dataset ? nextNode.dataset.messageKey : "";
     const existing = key ? existingByKey.get(key) : null;
     const signature = nextNode.dataset ? nextNode.dataset.renderSignature : "";
     if (existing && existing.dataset.renderSignature === signature) {
       fragment.appendChild(existing);
+      reused += 1;
       continue;
     }
 
+    created += 1;
     if (key && expandedKeys.has(key)) {
       restoreExpandedMessage(nextNode);
     }
@@ -145,6 +152,8 @@ function renderChatMessagesPanel(chatId, options) {
     fragment.appendChild(nextNode);
   }
 
+  countRenderStat("messageNodesReused", reused);
+  countRenderStat("messageNodesCreated", created);
   messages.replaceChildren(fragment);
   const board = normalizeBoardSettings(state.boardSettings);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
