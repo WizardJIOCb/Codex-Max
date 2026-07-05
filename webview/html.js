@@ -5,6 +5,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "styles.css"));
   const bootstrapUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "bootstrap.js"));
   const utilsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "utils.js"));
+  const stateModelUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "state-model.js"));
   const markdownUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "markdown.js"));
   const imagePreviewUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "image-preview.js"));
   const chatRenderUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-render.js"));
@@ -27,6 +28,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}">window.CODEX_MAX_BOOTSTRAP = ${bootstrapJson};</script>
   <script nonce="${nonce}" src="${bootstrapUri}"></script>
   <script nonce="${nonce}" src="${utilsUri}"></script>
+  <script nonce="${nonce}" src="${stateModelUri}"></script>
   <script nonce="${nonce}" src="${markdownUri}"></script>
   <script nonce="${nonce}" src="${imagePreviewUri}"></script>
   <script nonce="${nonce}" src="${chatRenderUri}"></script>
