@@ -14,6 +14,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const markdownUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "markdown.js"));
   const imagePreviewUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "image-preview.js"));
   const scrollManagerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "scroll-manager.js"));
+  const voiceUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "voice.js"));
   const chatRenderUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-render.js"));
   const chatInfoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-info.js"));
   const boardSettingsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-settings.js"));
@@ -43,6 +44,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${markdownUri}"></script>
   <script nonce="${nonce}" src="${imagePreviewUri}"></script>
   <script nonce="${nonce}" src="${scrollManagerUri}"></script>
+  <script nonce="${nonce}" src="${voiceUri}"></script>
   <script nonce="${nonce}" src="${chatRenderUri}"></script>
   <script nonce="${nonce}" src="${chatInfoUri}"></script>
   <script nonce="${nonce}" src="${boardSettingsUri}"></script>
