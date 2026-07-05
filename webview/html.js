@@ -11,6 +11,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const attachmentsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "attachments.js"));
   const boardMetricsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-metrics.js"));
   const formControlsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "form-controls.js"));
+  const dropdownMenusUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "dropdown-menus.js"));
   const markdownUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "markdown.js"));
   const imagePreviewUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "image-preview.js"));
   const scrollManagerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "scroll-manager.js"));
@@ -41,6 +42,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${attachmentsUri}"></script>
   <script nonce="${nonce}" src="${boardMetricsUri}"></script>
   <script nonce="${nonce}" src="${formControlsUri}"></script>
+  <script nonce="${nonce}" src="${dropdownMenusUri}"></script>
   <script nonce="${nonce}" src="${markdownUri}"></script>
   <script nonce="${nonce}" src="${imagePreviewUri}"></script>
   <script nonce="${nonce}" src="${scrollManagerUri}"></script>
