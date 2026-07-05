@@ -16,7 +16,8 @@ const { downloadFile, extractRuntimeArchive, fileExists } = require("./lib/file-
 const { quoteShellArg, requestAppServer, runCodexCommand, stripAnsi } = require("./lib/codex-cli");
 const { MAX_ATTACHMENT_BYTES, createAttachmentFromUri, imageMimeType, isImagePath, resolveWorkspaceFilePath } = require("./lib/attachments");
 const { augmentFileChangeWithDiff, captureFileSnapshotsFromText, compactJson, eventIdentity, fileChangeSummary, handleJsonLine, postChatEvent } = require("./lib/codex-events");
-const { cleanWhisperLiveOutput, cleanWhisperRuntimeError, listCaptureDevices, newestWavFile, repairWavHeader, runWhisperCli } = require("./lib/whisper-utils");
+const { listCaptureDevices, runWhisperCli } = require("./lib/whisper-utils");
+const { WhisperManager } = require("./lib/whisper-manager");
 const { version: EXTENSION_VERSION } = require("./package.json");
 
 const VIEW_TYPE = "codexMax.chatBoard";
@@ -242,9 +243,19 @@ class ChatBoardPanel {
     this.runner = runner;
     this.disposables = [];
     this.rateLimitsRefreshInFlight = null;
-    this.whisperLiveProcesses = new Map();
-    this.whisperWarmups = new Map();
-    this.whisperPersistent = null;
+    this.whisper = new WhisperManager({
+      models: LOCAL_WHISPER_MODELS,
+      runtime: WHISPER_RUNTIME,
+      defaultModelId: DEFAULT_BOARD_SETTINGS.localWhisperModel,
+      paths: {
+        root: () => this.whisperRoot(),
+        cli: () => this.whisperRuntimePath(),
+        stream: () => this.whisperStreamPath(),
+        model: (model) => this.whisperModelPath(model)
+      },
+      post: (message) => this.post(message),
+      normalizeStopGraceMs: normalizeWhisperStopGraceMs
+    });
 
     this.panel.webview.options = {
       enableScripts: true,
@@ -391,12 +402,12 @@ class ChatBoardPanel {
     }
 
     if (message.type === "startWhisperLive") {
-      await this.startWhisperLive(message.chatId, message.modelId, message.captureId);
+      await this.whisper.startWhisperLive(message.chatId, message.modelId, message.captureId);
       return;
     }
 
     if (message.type === "stopWhisperLive") {
-      this.stopWhisperLive(message.chatId, false, false, message.stopGraceMs);
+      this.whisper.stopWhisperLive(message.chatId, false, false, message.stopGraceMs);
       return;
     }
 
@@ -717,12 +728,12 @@ class ChatBoardPanel {
 
     try {
       this.post({ type: "whisperPrewarmStarted", modelId: model.id });
-      await this.ensurePersistentWhisper(model.id, captureId);
+      await this.whisper.ensurePersistentWhisper(model.id, captureId);
       setTimeout(() => {
         this.post({
           type: "whisperPrewarmFinished",
           modelId: model.id,
-          error: this.whisperPersistent && this.whisperPersistent.modelId === model.id ? "" : "Local Whisper process is not running."
+          error: this.whisper.isPersistentModel(model.id) ? "" : "Local Whisper process is not running."
         });
       }, 1200);
     } catch (error) {
@@ -889,293 +900,8 @@ class ChatBoardPanel {
     }
   }
 
-  async ensurePersistentWhisper(modelId, captureId) {
-    const model = LOCAL_WHISPER_MODELS.find((item) => item.id === modelId) || LOCAL_WHISPER_MODELS.find((item) => item.id === DEFAULT_BOARD_SETTINGS.localWhisperModel) || LOCAL_WHISPER_MODELS[0];
-    const executable = this.whisperStreamPath();
-    const modelPath = model ? this.whisperModelPath(model) : "";
-    const normalizedCaptureId = normalizeCaptureId(captureId);
-
-    if (this.whisperPersistent && this.whisperPersistent.modelId === model.id && this.whisperPersistent.captureId === normalizedCaptureId && !this.whisperPersistent.exited) {
-      return this.whisperPersistent;
-    }
-
-    this.killPersistentWhisper();
-
-    if (!await fileExists(executable)) {
-      const installHint = WHISPER_RUNTIME.supported
-        ? "Click Update/Install for whisper.cpp runtime."
-        : (WHISPER_RUNTIME.reason || "Automatic runtime install is not available on this platform.");
-      throw new Error(`whisper-stream is not installed. ${installHint}`);
-    }
-    if (!modelPath || !await fileExists(modelPath)) {
-      throw new Error("Selected Whisper model is not installed.");
-    }
-
-    const recordDir = path.join(this.whisperRoot(), "recordings", `persistent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    await fs.promises.mkdir(recordDir, { recursive: true });
-    const args = [
-      "-m", modelPath,
-      "-l", "ru",
-      "--capture", String(normalizedCaptureId),
-      "--step", "4500",
-      "--length", "4500",
-      "--keep", "0",
-      "--max-tokens", "64",
-      "--vad-thold", "0.70",
-      "--no-fallback"
-    ];
-    const child = spawnExternalProcess(executable, args, {
-      cwd: recordDir,
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    const session = {
-      child,
-      modelId: model.id,
-      captureId: normalizedCaptureId,
-      activeChatId: "",
-      stopping: false,
-      lastOutputAt: Date.now(),
-      stopTimer: null,
-      stopDeadlineTimer: null,
-      stdoutBuffer: "",
-      stderrBuffer: "",
-      recordDir,
-      exited: false,
-      disposed: false
-    };
-    this.whisperPersistent = session;
-
-    child.stdout.on("data", (chunk) => {
-      session.lastOutputAt = Date.now();
-      session.stdoutBuffer += chunk.toString();
-      const lines = session.stdoutBuffer.split(/\r?\n|\r/);
-      session.stdoutBuffer = lines.pop() || "";
-      for (const line of lines) {
-        if (session.activeChatId) {
-          this.postWhisperLiveText(session.activeChatId, line);
-        }
-      }
-    });
-    child.stderr.on("data", (chunk) => {
-      session.stderrBuffer += chunk.toString();
-    });
-    child.on("error", (error) => {
-      const chatId = session.activeChatId;
-      session.exited = true;
-      if (this.whisperPersistent === session) {
-        this.whisperPersistent = null;
-      }
-      if (chatId) {
-        this.post({
-          type: "whisperLiveError",
-          chatId,
-          error: error.message || String(error)
-        });
-      }
-    });
-    child.on("close", (code) => {
-      const chatId = session.activeChatId;
-      session.exited = true;
-      if (session.stopTimer) {
-        clearTimeout(session.stopTimer);
-        session.stopTimer = null;
-      }
-      if (session.stopDeadlineTimer) {
-        clearTimeout(session.stopDeadlineTimer);
-        session.stopDeadlineTimer = null;
-      }
-      if (this.whisperPersistent === session) {
-        this.whisperPersistent = null;
-      }
-      fs.promises.rm(session.recordDir, { recursive: true, force: true }).catch(() => {});
-      if (chatId) {
-        this.post({
-          type: "whisperLiveStopped",
-          chatId,
-          error: session.disposed || code === 0 ? "" : cleanWhisperRuntimeError(session.stderrBuffer) || `whisper-stream exited with code ${code}.`
-        });
-      }
-    });
-
-    return session;
-  }
-
-  async startWhisperLive(chatId, modelId, captureId) {
-    chatId = String(chatId || "");
-    if (!chatId) {
-      return;
-    }
-
-    try {
-      const session = await this.ensurePersistentWhisper(modelId, captureId);
-      if (session.activeChatId && session.activeChatId !== chatId) {
-        this.post({
-          type: "whisperLiveStopped",
-          chatId: session.activeChatId,
-          error: ""
-        });
-      }
-      if (session.stopTimer) {
-        clearTimeout(session.stopTimer);
-        session.stopTimer = null;
-      }
-      if (session.stopDeadlineTimer) {
-        clearTimeout(session.stopDeadlineTimer);
-        session.stopDeadlineTimer = null;
-      }
-      session.activeChatId = chatId;
-      session.stopping = false;
-      session.lastOutputAt = Date.now();
-      session.stdoutBuffer = "";
-      this.post({ type: "whisperLiveStarted", chatId });
-    } catch (error) {
-      this.post({
-        type: "whisperLiveError",
-        chatId,
-        error: error.message || String(error)
-      });
-    }
-  }
-
-  postWhisperLiveText(chatId, rawLine) {
-    const text = cleanWhisperLiveOutput(rawLine);
-    if (!text) {
-      return;
-    }
-
-    this.post({
-      type: "whisperLiveText",
-      chatId,
-      text
-    });
-  }
-
-  async finalizeWhisperLiveRecording(session) {
-    if (!session || !session.recordDir || !session.cliExecutable || !session.modelPath) {
-      return "";
-    }
-
-    const audioPath = await newestWavFile(session.recordDir);
-    if (!audioPath) {
-      return "";
-    }
-
-    await repairWavHeader(audioPath);
-    try {
-      return await runWhisperCli(session.cliExecutable, session.modelPath, audioPath);
-    } finally {
-      fs.promises.rm(session.recordDir, { recursive: true, force: true }).catch(() => {});
-    }
-  }
-
-  stopWhisperLive(chatId, silent, immediate, stopGraceMs) {
-    const session = this.whisperPersistent;
-    chatId = String(chatId || "");
-    if (!session || session.activeChatId !== chatId) {
-      return;
-    }
-
-    if (session.stopping && !immediate) {
-      return;
-    }
-
-    session.stopping = true;
-    if (!silent) {
-      this.post({
-        type: "whisperLiveStopping",
-        chatId
-      });
-    }
-
-    const killSession = () => {
-      if (!session.activeChatId) {
-        return;
-      }
-      session.stopTimer = null;
-      if (session.stopDeadlineTimer) {
-        clearTimeout(session.stopDeadlineTimer);
-        session.stopDeadlineTimer = null;
-      }
-      const stoppedChatId = session.activeChatId;
-      session.activeChatId = "";
-      session.stopping = false;
-      session.stdoutBuffer = "";
-      this.post({
-        type: "whisperLiveStopped",
-        chatId: stoppedChatId,
-        error: ""
-      });
-    };
-
-    if (immediate) {
-      killSession();
-      return;
-    }
-
-    const graceMs = normalizeWhisperStopGraceMs(stopGraceMs);
-    const quietMs = Math.min(1600, Math.max(650, Math.floor(graceMs / 3)));
-    const deadlineAt = Date.now() + graceMs;
-    const waitForQuietOutput = () => {
-      if (!session.activeChatId) {
-        return;
-      }
-
-      const now = Date.now();
-      const quietFor = now - Number(session.lastOutputAt || 0);
-      const remaining = deadlineAt - now;
-      if (remaining <= 0 || quietFor >= quietMs) {
-        killSession();
-        return;
-      }
-
-      session.stopTimer = setTimeout(waitForQuietOutput, Math.min(quietMs - quietFor, remaining, 250));
-    };
-
-    session.stopTimer = setTimeout(waitForQuietOutput, quietMs);
-    session.stopDeadlineTimer = setTimeout(killSession, graceMs);
-  }
-
   stopAllWhisperLive() {
-    for (const chatId of this.whisperLiveProcesses.keys()) {
-      this.stopWhisperLive(chatId, true, true);
-    }
-    this.whisperLiveProcesses.clear();
-    this.killPersistentWhisper();
-  }
-
-  killPersistentWhisper() {
-    const session = this.whisperPersistent;
-    if (!session) {
-      return;
-    }
-    session.disposed = true;
-    session.activeChatId = "";
-    if (session.stopTimer) {
-      clearTimeout(session.stopTimer);
-      session.stopTimer = null;
-    }
-    if (session.stopDeadlineTimer) {
-      clearTimeout(session.stopDeadlineTimer);
-      session.stopDeadlineTimer = null;
-    }
-    try {
-      session.child.kill();
-    } catch {
-      // Process may already be gone.
-    }
-    fs.promises.rm(session.recordDir, { recursive: true, force: true }).catch(() => {});
-    this.whisperPersistent = null;
-  }
-
-  stopAllWhisperWarmups() {
-    for (const child of this.whisperWarmups.values()) {
-      try {
-        child.kill();
-      } catch {
-        // Warmup process may already have exited.
-      }
-    }
-    this.whisperWarmups.clear();
+    this.whisper.stopAll();
   }
 
   async previewImage(message) {
@@ -1437,7 +1163,6 @@ class ChatBoardPanel {
   dispose() {
     boardPanel = undefined;
     this.stopAllWhisperLive();
-    this.stopAllWhisperWarmups();
     this.runner.stopAll();
 
     while (this.disposables.length) {
