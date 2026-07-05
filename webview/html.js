@@ -7,6 +7,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const utilsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "utils.js"));
   const stateModelUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "state-model.js"));
   const workspaceControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "workspace-controller.js"));
+  const chatStoreUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-store.js"));
   const attachmentsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "attachments.js"));
   const boardMetricsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-metrics.js"));
   const formControlsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "form-controls.js"));
@@ -35,6 +36,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${utilsUri}"></script>
   <script nonce="${nonce}" src="${stateModelUri}"></script>
   <script nonce="${nonce}" src="${workspaceControllerUri}"></script>
+  <script nonce="${nonce}" src="${chatStoreUri}"></script>
   <script nonce="${nonce}" src="${attachmentsUri}"></script>
   <script nonce="${nonce}" src="${boardMetricsUri}"></script>
   <script nonce="${nonce}" src="${formControlsUri}"></script>
