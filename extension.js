@@ -6153,6 +6153,8 @@ function getHtml(webview) {
     let chatPausedScrollTop = new Map();
     let chatStickyScroll = new Set();
     let chatUserScrollIntent = new Set();
+    let pendingChatRenderIds = new Set();
+    let pendingChatRenderFrame = 0;
     let rateLimitsRequestedOnce = false;
     let voiceRecognition = null;
     let voiceChatId = "";
@@ -6255,7 +6257,7 @@ function getHtml(webview) {
           chat.title = chatTitleWithProject(chat.title, chat.projectPath);
         });
         activeChatInfoId = message.chatId;
-        render();
+        refreshChatInfoDialog(false);
         return;
       }
 
@@ -6330,7 +6332,7 @@ function getHtml(webview) {
       if (message.type === "accountRateLimits") {
         accountRateLimitsLoading = false;
         state.accountRateLimits = normalizeRateLimits(message.rateLimits);
-        render();
+        refreshBoardUsage();
         persist();
         return;
       }
@@ -6773,6 +6775,7 @@ function getHtml(webview) {
 
     function render(options) {
       const renderOptions = options && typeof options === "object" ? options : {};
+      clearPendingChatRenders();
       closeSelectMenu();
       closeWorkspaceMenu();
       const previousBoardScroll = renderOptions.preserveBoardScroll ? captureBoardScrollState() : null;
@@ -6894,12 +6897,12 @@ function getHtml(webview) {
         });
 
         for (const control of card.querySelectorAll("[data-setting]")) {
-          control.addEventListener("change", (event) => {
-            chat.settings[event.target.dataset.setting] = event.target.value;
-            chat.updatedAt = Date.now();
-            render();
-            persist();
-          });
+        control.addEventListener("change", (event) => {
+          chat.settings[event.target.dataset.setting] = event.target.value;
+          chat.updatedAt = Date.now();
+          renderChatCard(chat.id);
+          persist();
+        });
           control.addEventListener("input", (event) => {
             chat.settings[event.target.dataset.setting] = event.target.value;
             chat.updatedAt = Date.now();
@@ -7042,7 +7045,45 @@ function getHtml(webview) {
       syncDurationTimer();
     }
 
-    function renderChatCard(chatId) {
+    function scheduleChatCardRender(chatId) {
+      if (!chatId) {
+        return;
+      }
+
+      pendingChatRenderIds.add(chatId);
+      if (pendingChatRenderFrame) {
+        return;
+      }
+
+      pendingChatRenderFrame = requestAnimationFrame(flushChatCardRenders);
+    }
+
+    function clearPendingChatRenders() {
+      if (pendingChatRenderFrame) {
+        cancelAnimationFrame(pendingChatRenderFrame);
+        pendingChatRenderFrame = 0;
+      }
+      pendingChatRenderIds.clear();
+    }
+
+    function flushChatCardRenders() {
+      const ids = Array.from(pendingChatRenderIds);
+      pendingChatRenderIds.clear();
+      pendingChatRenderFrame = 0;
+      if (!ids.length) {
+        return;
+      }
+
+      for (const chatId of ids) {
+        renderChatCard(chatId, { deferAfterRender: true });
+      }
+      refreshBoardUsage();
+      updateVoiceButtons();
+      syncDurationTimer();
+    }
+
+    function renderChatCard(chatId, options) {
+      const renderOptions = options && typeof options === "object" ? options : {};
       const chat = state.chats.find((item) => item.id === chatId);
       const card = document.querySelector('[data-chat-id="' + chatId + '"]');
       if (!chat || !card) {
@@ -7062,9 +7103,11 @@ function getHtml(webview) {
 
       card.replaceWith(nextCard);
       bindChatCardControls(chat, nextCard, previous, board.autoScroll);
-      refreshBoardUsage();
-      updateVoiceButtons();
-      syncDurationTimer();
+      if (!renderOptions.deferAfterRender) {
+        refreshBoardUsage();
+        updateVoiceButtons();
+        syncDurationTimer();
+      }
     }
 
     function captureSingleMessageScrollState(card) {
@@ -8562,9 +8605,27 @@ function getHtml(webview) {
 
     function openChatInfo(chatId) {
       activeChatInfoId = chatId;
-      render();
+      refreshChatInfoDialog(true);
+    }
+
+    function refreshChatInfoDialog(focusClose) {
+      const existing = document.getElementById("chatInfoModal");
+      if (!existing) {
+        render();
+        return;
+      }
+
+      const template = document.createElement("template");
+      template.innerHTML = renderChatInfoDialog().trim();
+      const next = template.content.firstElementChild;
+      if (!next) {
+        return;
+      }
+
+      existing.replaceWith(next);
+      bindChatInfoDialog();
       const closeButton = document.getElementById("closeChatInfo");
-      if (closeButton) {
+      if (focusClose && closeButton) {
         closeButton.focus();
       }
     }
@@ -8609,7 +8670,7 @@ function getHtml(webview) {
         chat.projectPath = workspacePath;
         chat.title = chatTitleWithProject(chat.title, chat.projectPath);
       });
-      render();
+      refreshChatInfoDialog(false);
     }
 
     function renderImageViewerDialog() {
@@ -9757,13 +9818,9 @@ function getHtml(webview) {
     }
 
     function openOfficialCodex(chatId, target) {
-      const chat = state.chats.find((item) => item.id === chatId);
-      if (chat) {
+      updateChat(chatId, (chat) => {
         chat.status = "running";
-        chat.updatedAt = Date.now();
-      }
-      render();
-      persist();
+      });
       vscode.postMessage({
         type: "openOfficialCodex",
         chatId,
@@ -10211,7 +10268,7 @@ function getHtml(webview) {
         at: Date.now()
       });
       chat.updatedAt = Date.now();
-      renderChatCard(chatId);
+      scheduleChatCardRender(chatId);
       persist();
     }
 
@@ -11679,7 +11736,7 @@ function getHtml(webview) {
 
       updater(chat);
       chat.updatedAt = Date.now();
-      renderChatCard(chatId);
+      scheduleChatCardRender(chatId);
       persist();
     }
 

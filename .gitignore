@@ -5,3 +5,5 @@ node_modules/
 Thumbs.db
 test.txt
 test.*
+codex-max-workspaces-*.json
+codex-max-preset-*.json
