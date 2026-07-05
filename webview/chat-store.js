@@ -15,7 +15,7 @@ function addAssistantMessage(chatId, text) {
       runStartedAt: Number(chat.runStartedAt || 0),
       runFinishedAt: finishedAt
     });
-  });
+  }, { render: "messages" });
 }
 
 function addMessage(chatId, role, text) {
@@ -29,7 +29,7 @@ function addMessage(chatId, role, text) {
       text,
       at: Date.now()
     });
-  });
+  }, { render: "messages" });
 }
 
 function addEventMessage(chatId, event) {
@@ -92,8 +92,15 @@ function updateChat(chatId, updater, options) {
   chat.updatedAt = Date.now();
   if (updateOptions.render === "chrome") {
     renderChatChrome(chatId);
+  } else if (updateOptions.render === "messages") {
+    renderChatMessagesPanel(chatId);
+  } else if (updateOptions.render === "chrome+messages") {
+    renderChatChrome(chatId);
+    renderChatMessagesPanel(chatId);
   } else if (updateOptions.render === "event" && updateOptions.eventId && renderEventMessage(chatId, updateOptions.eventId)) {
     // Updated a single existing event in place.
+  } else if (updateOptions.render === "event") {
+    renderChatMessagesPanel(chatId);
   } else {
     scheduleChatCardRender(chatId);
   }

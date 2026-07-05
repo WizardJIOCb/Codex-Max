@@ -16,7 +16,7 @@ function chatScrollSignature(chat) {
           change.kind || "",
           change.additions == null ? "" : change.additions,
           change.deletions == null ? "" : change.deletions,
-          String(change.diff || "").length
+          hashString(change.diff || "")
         ].join(":")).join(",")
       : "";
     parts.push([
@@ -174,7 +174,7 @@ function renderChatMessages(chat) {
 
 function renderThinkingLine() {
   return `
-    <div class="thinkingLine">
+    <div class="thinkingLine" data-message-key="thinking" data-render-signature="thinking">
       <span>Thinking</span>
     </div>
   `;
@@ -213,12 +213,13 @@ function renderAttachmentChip(attachment) {
 }
 
 function renderMessage(item, chat, index) {
+  const keyAttrs = messageIdentityAttrs(item, chat, index);
   if (item.role === "changeSummary") {
     const title = item.title || item.text || "Edited files";
     const detail = item.detail || "Updated";
     const messageId = item.eventId ? ' data-message-id="' + escapeAttr(item.eventId) + '"' : "";
     return `
-      <div class="message changeSummary"${messageId}>
+      <div class="message changeSummary"${messageId}${keyAttrs}>
         <div class="changeCard" role="button" tabindex="0" aria-expanded="false" title="Toggle changed files">
           <span class="changeIcon">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -253,7 +254,7 @@ function renderMessage(item, chat, index) {
       ? renderChangeDetails(item)
       : (detail ? '<pre>' + escapeHtml(detail) + '</pre>' : '<div class="eventEmpty">No additional details</div>');
     return `
-      <div class="message event ${escapeAttr(item.kind || "event")} ${escapeAttr(item.status || "info")}"${messageId}>
+      <div class="message event ${escapeAttr(item.kind || "event")} ${escapeAttr(item.status || "info")}"${messageId}${keyAttrs}>
         <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle details">
           <span class="eventBadge">${escapeHtml(eventBadge(item.kind, item.status))}</span>
           <span class="eventTitle">${escapeHtml(title)}</span>
@@ -274,7 +275,7 @@ function renderMessage(item, chat, index) {
 
   if (item.role === "user") {
     return `
-      <div class="message user">
+      <div class="message user"${keyAttrs}>
         ${renderPlainText(item.text)}
         <div class="userMeta">
           <span title="${escapeAttr(formatDateTime(item.at))}">${escapeHtml(formatMessageTime(item.at))}</span>
@@ -290,7 +291,7 @@ function renderMessage(item, chat, index) {
   }
 
   const html = item.role === "assistant" ? renderMarkdown(item.text) : renderPlainText(item.text);
-  return `<div class="message ${escapeAttr(item.role)}">${html}</div>`;
+  return `<div class="message ${escapeAttr(item.role)}"${keyAttrs}>${html}</div>`;
 }
 
 function renderTurnDuration(startedAt, finishedAt) {
@@ -302,14 +303,69 @@ function renderTurnDuration(startedAt, finishedAt) {
 
   const label = end ? "Worked for " : "Working for ";
   const duration = formatDuration((end || Date.now()) - start);
+  const signature = ["duration", start, end].join(":");
   return `
-    <div class="turnDuration" data-duration-start="${escapeAttr(start)}" data-duration-end="${escapeAttr(end)}">
+    <div class="turnDuration" data-message-key="duration:${escapeAttr(start)}" data-render-signature="${escapeAttr(signature)}" data-duration-start="${escapeAttr(start)}" data-duration-end="${escapeAttr(end)}">
       <span data-duration-label="true">${escapeHtml(label + duration)}</span>
       <svg viewBox="0 0 16 16" aria-hidden="true">
         <path d="M6 3.5 10.5 8 6 12.5"></path>
       </svg>
     </div>
   `;
+}
+
+function messageIdentityAttrs(item, chat, index) {
+  return ' data-message-key="' + escapeAttr(messageRenderKey(item, chat, index)) + '" data-render-signature="' + escapeAttr(messageRenderSignature(item)) + '"';
+}
+
+function messageRenderKey(item, chat, index) {
+  if (item.eventId) {
+    return "event:" + item.eventId;
+  }
+
+  return [
+    "message",
+    chat && chat.id || "",
+    index,
+    item.role || "",
+    item.at || ""
+  ].join(":");
+}
+
+function messageRenderSignature(item) {
+  const changes = Array.isArray(item.changes)
+    ? item.changes.map((change) => [
+        change.path || "",
+        change.kind || "",
+        change.additions == null ? "" : change.additions,
+        change.deletions == null ? "" : change.deletions,
+        hashString(change.diff || "")
+      ].join(":")).join(",")
+    : "";
+
+  return [
+    item.role || "",
+    item.kind || "",
+    item.status || "",
+    item.eventId || "",
+    item.at || "",
+    hashString(item.text || ""),
+    String(item.title || ""),
+    hashString(item.detail || ""),
+    hashString(item.raw || ""),
+    Number(item.runStartedAt || 0),
+    Number(item.runFinishedAt || 0),
+    changes
+  ].join("|");
+}
+
+function hashString(value) {
+  const text = String(value || "");
+  let hash = 5381;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36) + ":" + text.length;
 }
 
 function statusLabel(status) {

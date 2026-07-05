@@ -34,14 +34,14 @@ window.addEventListener("message", (event) => {
       if (message.status !== "running") {
         chat.isThinking = false;
       }
-    });
+    }, { render: "chrome+messages" });
     return;
   }
 
   if (message.type === "chatThinking") {
     updateChat(message.chatId, (chat) => {
       chat.isThinking = Boolean(message.thinking) && chat.status === "running";
-    });
+    }, { render: "messages" });
     return;
   }
 
@@ -144,7 +144,7 @@ window.addEventListener("message", (event) => {
         kind: "error",
         at: Date.now()
       });
-    });
+    }, { render: "chrome+messages" });
   }
 
   if (message.type === "chatEvent") {

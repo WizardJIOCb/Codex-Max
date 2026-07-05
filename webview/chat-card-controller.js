@@ -102,6 +102,92 @@ function renderChatChrome(chatId) {
   return true;
 }
 
+function renderChatMessagesPanel(chatId, options) {
+  const renderOptions = options && typeof options === "object" ? options : {};
+  const chat = state.chats.find((item) => item.id === chatId);
+  const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+  if (!chat || !card) {
+    render();
+    return false;
+  }
+
+  const messages = card.querySelector(".messages");
+  if (!messages) {
+    renderChatCard(chatId, renderOptions);
+    return false;
+  }
+
+  const previousScroll = captureSingleMessageScrollState(card);
+  const expandedKeys = captureExpandedMessageKeys(messages);
+  const existingByKey = new Map();
+  for (const node of messages.querySelectorAll(":scope > [data-message-key]")) {
+    existingByKey.set(node.dataset.messageKey, node);
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = renderChatMessages(chat);
+  const fragment = document.createDocumentFragment();
+  for (const nextNode of Array.from(template.content.children)) {
+    const key = nextNode.dataset ? nextNode.dataset.messageKey : "";
+    const existing = key ? existingByKey.get(key) : null;
+    const signature = nextNode.dataset ? nextNode.dataset.renderSignature : "";
+    if (existing && existing.dataset.renderSignature === signature) {
+      fragment.appendChild(existing);
+      continue;
+    }
+
+    if (key && expandedKeys.has(key)) {
+      restoreExpandedMessage(nextNode);
+    }
+    bindMessageContentControls(nextNode);
+    fragment.appendChild(nextNode);
+  }
+
+  messages.replaceChildren(fragment);
+  const board = normalizeBoardSettings(state.boardSettings);
+  restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
+  if (!renderOptions.deferAfterRender) {
+    refreshBoardUsage();
+    updateVoiceButtons();
+    syncDurationTimer();
+  }
+  return true;
+}
+
+function captureExpandedMessageKeys(messages) {
+  const keys = new Set();
+  if (!messages) {
+    return keys;
+  }
+
+  for (const item of messages.querySelectorAll(":scope > .message.expanded[data-message-key]")) {
+    keys.add(item.dataset.messageKey);
+  }
+  return keys;
+}
+
+function restoreExpandedMessage(item) {
+  if (!item) {
+    return;
+  }
+
+  item.classList.add("expanded");
+  const eventSummary = item.querySelector(".eventSummary");
+  const changeSummary = item.querySelector(".changeCard");
+  const toggle = item.querySelector(".eventToggle, .changeAction");
+  if (eventSummary) {
+    eventSummary.setAttribute("aria-expanded", "true");
+  }
+  if (changeSummary) {
+    changeSummary.setAttribute("aria-expanded", "true");
+  }
+  if (toggle) {
+    const title = item.classList.contains("changeSummary") ? "Collapse changes" : "Collapse details";
+    toggle.setAttribute("title", title);
+    toggle.setAttribute("aria-label", title);
+  }
+}
+
 function renderEventMessage(chatId, eventId) {
   const chat = state.chats.find((item) => item.id === chatId);
   const card = document.querySelector('[data-chat-id="' + chatId + '"]');
