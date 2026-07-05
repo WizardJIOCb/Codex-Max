@@ -2,7 +2,7 @@
   "name": "codex-max",
   "displayName": "Codex Max",
   "description": "A VS Code workspace tab with a compact multi-chat Codex board.",
-  "version": "0.0.123",
+  "version": "0.0.124",
   "publisher": "local",
   "repository": {
     "type": "git",
@@ -108,7 +108,7 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check lib/platform.js && node --check lib/file-utils.js && node --check lib/codex-cli.js && node --check webview/html.js && node --check webview/bootstrap.js && node --check webview/utils.js && node --check webview/state-model.js && node --check webview/workspace-controller.js && node --check webview/chat-store.js && node --check webview/attachments.js && node --check webview/board-metrics.js && node --check webview/form-controls.js && node --check webview/dropdown-menus.js && node --check webview/markdown.js && node --check webview/image-preview.js && node --check webview/scroll-manager.js && node --check webview/voice.js && node --check webview/chat-render.js && node --check webview/toolbar-controller.js && node --check webview/chat-card-controller.js && node --check webview/chat-actions.js && node --check webview/chat-info.js && node --check webview/board-settings.js && node --check webview/board-renderer.js && node --check webview/message-router.js && node --check webview/keyboard-controller.js && node --check webview/main.js",
+    "check": "node --check extension.js && node --check lib/platform.js && node --check lib/file-utils.js && node --check lib/codex-cli.js && node --check lib/attachments.js && node --check lib/codex-events.js && node --check lib/whisper-utils.js && node --check webview/html.js && node --check webview/bootstrap.js && node --check webview/utils.js && node --check webview/state-model.js && node --check webview/workspace-controller.js && node --check webview/chat-store.js && node --check webview/attachments.js && node --check webview/board-metrics.js && node --check webview/form-controls.js && node --check webview/dropdown-menus.js && node --check webview/markdown.js && node --check webview/image-preview.js && node --check webview/scroll-manager.js && node --check webview/voice.js && node --check webview/chat-render.js && node --check webview/toolbar-controller.js && node --check webview/chat-card-controller.js && node --check webview/chat-actions.js && node --check webview/chat-info.js && node --check webview/board-settings.js && node --check webview/board-renderer.js && node --check webview/message-router.js && node --check webview/keyboard-controller.js && node --check webview/main.js",
     "package": "vsce package --no-dependencies",
     "install:local": "npm run package && node -e \"const cp=require('child_process');const v=require('./package.json').version;cp.execSync('code --install-extension codex-max-'+v+'.vsix --force',{stdio:'inherit'});\""
   },
