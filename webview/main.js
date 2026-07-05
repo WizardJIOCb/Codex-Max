@@ -13,6 +13,7 @@ let state = {
     chatBackground: DEFAULT_CHAT_BACKGROUND,
     sendWithCtrlEnter: false,
     autoScroll: true,
+    animateMessages: true,
     voiceShortcut: "alt-v",
     speechToText: "browser",
     localWhisperModel: "small-q5_1",

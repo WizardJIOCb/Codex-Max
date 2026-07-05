@@ -320,7 +320,7 @@ function normalizeWhisperStopGraceMs(value) {
 function normalizeBoardSettings(settings) {
   const fallback = Number(config.defaultChatsPerRow) || 3;
   const rowFallback = Number(config.defaultChatsPerColumn) || 2;
-  const next = Object.assign({ chatsPerRow: fallback, chatsPerColumn: rowFallback, maxChatHeight: 0, chatBackground: DEFAULT_CHAT_BACKGROUND, sendWithCtrlEnter: false, autoScroll: true, voiceShortcut: "alt-v", speechToText: "browser", localWhisperModel: "small-q5_1", localWhisperCaptureId: -1, localWhisperStopGraceMs: DEFAULT_WHISPER_LIVE_STOP_GRACE_MS, currentWorkspacePath: "" }, settings || {});
+  const next = Object.assign({ chatsPerRow: fallback, chatsPerColumn: rowFallback, maxChatHeight: 0, chatBackground: DEFAULT_CHAT_BACKGROUND, sendWithCtrlEnter: false, autoScroll: true, animateMessages: true, voiceShortcut: "alt-v", speechToText: "browser", localWhisperModel: "small-q5_1", localWhisperCaptureId: -1, localWhisperStopGraceMs: DEFAULT_WHISPER_LIVE_STOP_GRACE_MS, currentWorkspacePath: "" }, settings || {});
   const chatBackground = String(next.chatBackground || "").toLowerCase() === "#212121"
     ? DEFAULT_CHAT_BACKGROUND
     : next.chatBackground;
@@ -332,6 +332,7 @@ function normalizeBoardSettings(settings) {
     chatBackground: normalizeHexColor(chatBackground, DEFAULT_CHAT_BACKGROUND),
     sendWithCtrlEnter: Boolean(next.sendWithCtrlEnter),
     autoScroll: next.autoScroll !== false,
+    animateMessages: next.animateMessages !== false,
     voiceShortcut: normalizeVoiceShortcut(next.voiceShortcut),
     speechToText: normalizeSpeechToTextEngine(next.speechToText),
     localWhisperModel: normalizeLocalWhisperModel(next.localWhisperModel),

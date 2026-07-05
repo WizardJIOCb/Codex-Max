@@ -126,6 +126,8 @@ function renderChatMessagesPanel(chatId, options) {
   const entries = renderChatMessageEntries(chat);
   const tailStart = unchangedMessagePrefixLength(existingChildren, entries);
   const canPatchTail = tailStart > 0 || !existingChildren.length;
+  const board = normalizeBoardSettings(state.boardSettings);
+  const animateNewMessages = Boolean(board.animateMessages && existingChildren.length);
 
   let reused = 0;
   let created = 0;
@@ -135,7 +137,7 @@ function renderChatMessagesPanel(chatId, options) {
     removeMessageChildrenFrom(messages, tailStart);
     const fragment = document.createDocumentFragment();
     for (let index = tailStart; index < entries.length; index += 1) {
-      const nextNode = createMessageNodeFromEntry(entries[index], expandedKeys);
+      const nextNode = createMessageNodeFromEntry(entries[index], expandedKeys, animateNewMessages);
       if (nextNode) {
         created += 1;
         fragment.appendChild(nextNode);
@@ -160,7 +162,7 @@ function renderChatMessagesPanel(chatId, options) {
         continue;
       }
 
-      const nextNode = createMessageNodeFromEntry(entry, expandedKeys);
+      const nextNode = createMessageNodeFromEntry(entry, expandedKeys, animateNewMessages);
       if (nextNode) {
         created += 1;
         fragment.appendChild(nextNode);
@@ -172,7 +174,6 @@ function renderChatMessagesPanel(chatId, options) {
 
   countRenderStat("messageNodesReused", reused);
   countRenderStat("messageNodesCreated", created);
-  const board = normalizeBoardSettings(state.boardSettings);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
   if (!renderOptions.deferAfterRender) {
     refreshBoardUsage();
@@ -203,7 +204,7 @@ function removeMessageChildrenFrom(messages, startIndex) {
   }
 }
 
-function createMessageNodeFromEntry(entry, expandedKeys) {
+function createMessageNodeFromEntry(entry, expandedKeys, animate) {
   if (!entry) {
     return null;
   }
@@ -217,6 +218,9 @@ function createMessageNodeFromEntry(entry, expandedKeys) {
 
   if (entry.key && expandedKeys.has(entry.key)) {
     restoreExpandedMessage(nextNode);
+  }
+  if (animate) {
+    nextNode.classList.add("newMessage");
   }
   bindMessageContentControls(nextNode);
   return nextNode;

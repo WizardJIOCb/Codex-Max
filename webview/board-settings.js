@@ -1,5 +1,5 @@
 // Board settings dialog. Loaded before main.js.
-function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
+function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
   const isHeightAuto = !maxChatHeight;
   const heightValue = maxChatHeight || 720;
   return `
@@ -41,6 +41,10 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
           <div class="fieldRow checkboxRow">
             <label for="autoScrollMessages">Auto-scroll new messages</label>
             <input id="autoScrollMessages" class="settingCheckbox" type="checkbox" ${autoScroll ? "checked" : ""} />
+          </div>
+          <div class="fieldRow checkboxRow">
+            <label for="animateMessages">Animate new messages</label>
+            <input id="animateMessages" class="settingCheckbox" type="checkbox" ${animateMessages ? "checked" : ""} />
           </div>
           <div id="codexStatusCard" class="codexStatusCard">
             ${renderCodexStatus()}
@@ -232,6 +236,7 @@ function bindBoardSettingsDialog() {
   const heightInput = document.getElementById("maxChatHeight");
   const sendWithCtrlEnter = document.getElementById("sendWithCtrlEnter");
   const autoScrollMessages = document.getElementById("autoScrollMessages");
+  const animateMessages = document.getElementById("animateMessages");
   const voiceShortcut = document.getElementById("voiceShortcut");
   const speechToText = document.getElementById("speechToText");
   const localWhisperModel = document.getElementById("localWhisperModel");
@@ -250,7 +255,7 @@ function bindBoardSettingsDialog() {
   const codexStatusCard = document.getElementById("codexStatusCard");
   const renderStatsCard = document.getElementById("renderStatsCard");
 
-  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !renderStatsCard) {
+  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !renderStatsCard) {
     return;
   }
 
@@ -263,6 +268,7 @@ function bindBoardSettingsDialog() {
     heightInput.value = draft.maxChatHeight || heightInput.value || 720;
     sendWithCtrlEnter.checked = draft.sendWithCtrlEnter;
     autoScrollMessages.checked = draft.autoScroll;
+    animateMessages.checked = draft.animateMessages;
     voiceShortcut.value = draft.voiceShortcut;
     speechToText.value = draft.speechToText;
     localWhisperModel.value = draft.localWhisperModel;
@@ -325,6 +331,11 @@ function bindBoardSettingsDialog() {
 
   autoScrollMessages.addEventListener("change", (event) => {
     draft.autoScroll = event.target.checked;
+    updateModalControls();
+  });
+
+  animateMessages.addEventListener("change", (event) => {
+    draft.animateMessages = event.target.checked;
     updateModalControls();
   });
 
@@ -456,6 +467,7 @@ function bindBoardSettingsDialog() {
     draft.chatBackground = normalizeHexColor(chatBackground.value, DEFAULT_CHAT_BACKGROUND);
     draft.sendWithCtrlEnter = sendWithCtrlEnter.checked;
     draft.autoScroll = autoScrollMessages.checked;
+    draft.animateMessages = animateMessages.checked;
     draft.voiceShortcut = normalizeVoiceShortcut(voiceShortcut.value);
     draft.speechToText = normalizeSpeechToTextEngine(speechToText.value);
     draft.localWhisperModel = normalizeLocalWhisperModel(localWhisperModel.value);
