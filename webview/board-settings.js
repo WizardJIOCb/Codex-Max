@@ -199,10 +199,13 @@ function renderRenderStats() {
       ${renderRenderStat("Messages", stats.chatMessages)}
       ${renderRenderStat("Reused", stats.messageNodesReused)}
       ${renderRenderStat("Created", stats.messageNodesCreated)}
+      ${renderRenderStat("Tail patches", stats.messageTailPatches)}
+      ${renderRenderStat("Full rebuilds", stats.messageFullRebuilds)}
       ${renderRenderStat("Usage", stats.usage)}
       ${renderRenderStat("Batches", stats.incomingBatches)}
       ${renderRenderStat("Events", stats.incomingMessages)}
       ${renderRenderStat("Persists", stats.persistFlushes)}
+      ${renderRenderStat("Full syncs", stats.persistFullSyncs)}
     </div>
   `;
 }

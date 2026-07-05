@@ -146,30 +146,56 @@ function renderChat(chat) {
 }
 
 function renderChatMessages(chat) {
+  return renderChatMessageEntries(chat).map((entry) => entry.html).join("");
+}
+
+function renderChatMessageEntries(chat) {
   const items = Array.isArray(chat.messages)
     ? chat.messages.filter((item) => !(item.role === "event" && item.kind === "thinking" && item.status === "running"))
     : [];
   const start = Number(chat.runStartedAt || 0);
   const end = Number(chat.runFinishedAt || 0);
   const insertAfter = turnDurationInsertIndex(items, start);
-  let html = "";
+  const entries = [];
 
   for (let index = 0; index < items.length; index += 1) {
-    html += renderMessage(items[index], chat, index);
+    entries.push(createMessageRenderEntry(items[index], chat, index));
     if (index === insertAfter) {
-      html += renderTurnDuration(start, end);
+      entries.push(createDurationRenderEntry(start, end));
     }
   }
 
   if (insertAfter === -1 && chat.status === "running" && start && !end) {
-    html += renderTurnDuration(start, 0);
+    entries.push(createDurationRenderEntry(start, 0));
   }
 
   if (chat.status === "running" && chat.isThinking) {
-    html += renderThinkingLine();
+    entries.push({
+      key: "thinking",
+      signature: "thinking",
+      html: renderThinkingLine()
+    });
   }
 
-  return html;
+  return entries.filter((entry) => entry && entry.html);
+}
+
+function createMessageRenderEntry(item, chat, index) {
+  return {
+    key: messageRenderKey(item, chat, index),
+    signature: messageRenderSignature(item),
+    html: renderMessage(item, chat, index)
+  };
+}
+
+function createDurationRenderEntry(startedAt, finishedAt) {
+  const start = Number(startedAt || 0);
+  const end = Number(finishedAt || 0);
+  return {
+    key: "duration:" + start,
+    signature: ["duration", start, end].join(":"),
+    html: renderTurnDuration(start, end)
+  };
 }
 
 function renderThinkingLine() {

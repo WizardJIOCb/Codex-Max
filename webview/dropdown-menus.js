@@ -43,8 +43,9 @@ function openSelectMenu(chatId, chip) {
       chat.settings[setting] = item.value;
       chat.updatedAt = Date.now();
       closeSelectMenu();
+      syncActiveWorkspaceChat(chatId);
       renderChatChrome(chatId);
-      persist();
+      persist({ skipFullSync: true });
     });
     menu.appendChild(button);
   }

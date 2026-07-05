@@ -108,8 +108,9 @@ function sendPrompt(chatId) {
   });
 
   const finalPrompt = promptWithAttachments(prompt, attachments);
+  syncActiveWorkspaceChat(chatId);
   renderChatCard(chatId);
-  persist();
+  persist({ skipFullSync: true });
   vscode.postMessage({
     type: "sendPrompt",
     chatId,

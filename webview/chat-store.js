@@ -83,13 +83,14 @@ function updateChat(chatId, updater, options) {
     if (hiddenChat) {
       updater(hiddenChat);
       hiddenChat.updatedAt = Date.now();
-      persist();
+      persist({ skipFullSync: true });
     }
     return;
   }
 
   updater(chat);
   chat.updatedAt = Date.now();
+  syncActiveWorkspaceChat(chatId);
   if (chatUpdateBatchDepth > 0) {
     recordBatchedChatRender(chatId, updateOptions);
     batchedPersistNeeded = true;
@@ -110,7 +111,7 @@ function updateChat(chatId, updater, options) {
   } else {
     scheduleChatCardRender(chatId);
   }
-  persist();
+  persist({ skipFullSync: true });
 }
 
 function withBatchedChatUpdates(callback) {
@@ -183,11 +184,16 @@ function flushBatchedChatUpdates() {
     syncDurationTimer();
   }
   if (shouldPersist) {
-    persist();
+    persist({ skipFullSync: true });
   }
 }
 
-function persist() {
+function persist(options) {
+  const persistOptions = options && typeof options === "object" ? options : {};
+  if (!persistOptions.skipFullSync) {
+    pendingPersistNeedsFullSync = true;
+  }
+
   if (pendingPersistTimer) {
     clearTimeout(pendingPersistTimer);
   }
@@ -205,7 +211,11 @@ function persistNow() {
     pendingPersistTimer = 0;
   }
 
-  syncActiveWorkspaceFromState();
+  if (pendingPersistNeedsFullSync) {
+    countRenderStat("persistFullSyncs");
+    syncActiveWorkspaceFromState();
+  }
+  pendingPersistNeedsFullSync = false;
   vscode.setState(state);
   vscode.postMessage({ type: "persist", state });
 }
@@ -223,6 +233,49 @@ function syncActiveWorkspaceFromState() {
   workspace.selectedChatId = state.selectedChatId || null;
   workspace.boardSettings = board;
   workspace.chats = Array.isArray(state.chats) ? state.chats.map((chat) => cloneChat(chat, workspacePath)) : [];
+}
+
+function syncActiveWorkspaceChat(chatId) {
+  const workspace = activeWorkspaceProfile();
+  if (!workspace || !chatId) {
+    return;
+  }
+
+  syncActiveWorkspaceMetaFromState(workspace);
+  const workspacePath = workspace.path || currentWorkspacePath();
+  const chat = Array.isArray(state.chats) ? state.chats.find((item) => item.id === chatId) : null;
+  if (!chat) {
+    workspace.chats = Array.isArray(workspace.chats)
+      ? workspace.chats.filter((item) => item.id !== chatId)
+      : [];
+    return;
+  }
+
+  const storedChat = cloneChat(chat, workspacePath);
+  if (!Array.isArray(workspace.chats)) {
+    workspace.chats = [];
+  }
+
+  const index = workspace.chats.findIndex((item) => item.id === chatId);
+  if (index >= 0) {
+    workspace.chats[index] = storedChat;
+  } else {
+    workspace.chats.push(storedChat);
+  }
+}
+
+function syncActiveWorkspaceMetaFromState(workspace) {
+  const target = workspace || activeWorkspaceProfile();
+  if (!target) {
+    return;
+  }
+
+  const board = normalizeBoardSettings(state.boardSettings);
+  const workspacePath = currentWorkspacePathFromSettings(board);
+  target.name = target.name || projectFolderName(workspacePath) || "Workspace";
+  target.path = workspacePath;
+  target.selectedChatId = state.selectedChatId || null;
+  target.boardSettings = board;
 }
 
 function activeWorkspaceProfile() {

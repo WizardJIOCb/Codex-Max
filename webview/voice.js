@@ -93,7 +93,8 @@ function startVoiceInput(chatId) {
     chat.draftPrompt = nextText;
     chat.updatedAt = Date.now();
     resizePromptInput(textarea);
-    persist();
+    syncActiveWorkspaceChat(chat.id);
+    persist({ skipFullSync: true });
   };
 
   recognition.onerror = (event) => {
@@ -301,8 +302,9 @@ function addVoiceActivity(chatId, text) {
     at: Date.now()
   });
   chat.updatedAt = Date.now();
+  syncActiveWorkspaceChat(chatId);
   scheduleChatCardRender(chatId);
-  persist();
+  persist({ skipFullSync: true });
 }
 
 function applyVoiceTranscription(chatId, text) {
@@ -322,7 +324,8 @@ function applyVoiceTranscription(chatId, text) {
   chat.updatedAt = Date.now();
   resizePromptInput(textarea);
   textarea.focus();
-  persist();
+  syncActiveWorkspaceChat(chat.id);
+  persist({ skipFullSync: true });
 }
 
 function applyWhisperLiveText(chatId, text) {
@@ -363,7 +366,8 @@ function applyWhisperLiveText(chatId, text) {
   chat.draftPrompt = nextText;
   chat.updatedAt = Date.now();
   resizePromptInput(textarea);
-  persist();
+  syncActiveWorkspaceChat(chat.id);
+  persist({ skipFullSync: true });
 }
 
 function applyWhisperLiveFinalText(chatId, text) {
@@ -386,7 +390,8 @@ function applyWhisperLiveFinalText(chatId, text) {
   chat.draftPrompt = nextText;
   chat.updatedAt = Date.now();
   resizePromptInput(textarea);
-  persist();
+  syncActiveWorkspaceChat(chat.id);
+  persist({ skipFullSync: true });
 }
 
 function whisperChunksOverlap(previous, next) {

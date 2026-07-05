@@ -122,39 +122,56 @@ function renderChatMessagesPanel(chatId, options) {
 
   const previousScroll = captureSingleMessageScrollState(card);
   const expandedKeys = captureExpandedMessageKeys(messages);
-  const existingByKey = new Map();
-  for (const node of Array.from(messages.children)) {
-    if (node.dataset && node.dataset.messageKey) {
-      existingByKey.set(node.dataset.messageKey, node);
-    }
-  }
+  const existingChildren = Array.from(messages.children);
+  const entries = renderChatMessageEntries(chat);
+  const tailStart = unchangedMessagePrefixLength(existingChildren, entries);
+  const canPatchTail = tailStart > 0 || !existingChildren.length;
 
-  const template = document.createElement("template");
-  template.innerHTML = renderChatMessages(chat);
-  const fragment = document.createDocumentFragment();
   let reused = 0;
   let created = 0;
-  for (const nextNode of Array.from(template.content.children)) {
-    const key = nextNode.dataset ? nextNode.dataset.messageKey : "";
-    const existing = key ? existingByKey.get(key) : null;
-    const signature = nextNode.dataset ? nextNode.dataset.renderSignature : "";
-    if (existing && existing.dataset.renderSignature === signature) {
-      fragment.appendChild(existing);
-      reused += 1;
-      continue;
+
+  if (canPatchTail) {
+    reused = tailStart;
+    removeMessageChildrenFrom(messages, tailStart);
+    const fragment = document.createDocumentFragment();
+    for (let index = tailStart; index < entries.length; index += 1) {
+      const nextNode = createMessageNodeFromEntry(entries[index], expandedKeys);
+      if (nextNode) {
+        created += 1;
+        fragment.appendChild(nextNode);
+      }
+    }
+    messages.appendChild(fragment);
+    countRenderStat("messageTailPatches");
+  } else {
+    const existingByKey = new Map();
+    for (const node of existingChildren) {
+      if (node.dataset && node.dataset.messageKey) {
+        existingByKey.set(node.dataset.messageKey, node);
+      }
     }
 
-    created += 1;
-    if (key && expandedKeys.has(key)) {
-      restoreExpandedMessage(nextNode);
+    const fragment = document.createDocumentFragment();
+    for (const entry of entries) {
+      const existing = entry.key ? existingByKey.get(entry.key) : null;
+      if (existing && existing.dataset.renderSignature === entry.signature) {
+        fragment.appendChild(existing);
+        reused += 1;
+        continue;
+      }
+
+      const nextNode = createMessageNodeFromEntry(entry, expandedKeys);
+      if (nextNode) {
+        created += 1;
+        fragment.appendChild(nextNode);
+      }
     }
-    bindMessageContentControls(nextNode);
-    fragment.appendChild(nextNode);
+    messages.replaceChildren(fragment);
+    countRenderStat("messageFullRebuilds");
   }
 
   countRenderStat("messageNodesReused", reused);
   countRenderStat("messageNodesCreated", created);
-  messages.replaceChildren(fragment);
   const board = normalizeBoardSettings(state.boardSettings);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
   if (!renderOptions.deferAfterRender) {
@@ -163,6 +180,46 @@ function renderChatMessagesPanel(chatId, options) {
     syncDurationTimer();
   }
   return true;
+}
+
+function unchangedMessagePrefixLength(existingChildren, entries) {
+  const limit = Math.min(existingChildren.length, entries.length);
+  let index = 0;
+  while (index < limit) {
+    const node = existingChildren[index];
+    const entry = entries[index];
+    const dataset = node && node.dataset ? node.dataset : {};
+    if (String(dataset.messageKey || "") !== entry.key || String(dataset.renderSignature || "") !== entry.signature) {
+      break;
+    }
+    index += 1;
+  }
+  return index;
+}
+
+function removeMessageChildrenFrom(messages, startIndex) {
+  while (messages.children.length > startIndex) {
+    messages.removeChild(messages.lastElementChild);
+  }
+}
+
+function createMessageNodeFromEntry(entry, expandedKeys) {
+  if (!entry) {
+    return null;
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = entry.html;
+  const nextNode = template.content.firstElementChild;
+  if (!nextNode) {
+    return null;
+  }
+
+  if (entry.key && expandedKeys.has(entry.key)) {
+    restoreExpandedMessage(nextNode);
+  }
+  bindMessageContentControls(nextNode);
+  return nextNode;
 }
 
 function captureExpandedMessageKeys(messages) {
@@ -263,7 +320,8 @@ function bindChatChromeControls(chat, card) {
     title.addEventListener("input", (event) => {
       chat.title = event.target.value;
       chat.updatedAt = Date.now();
-      persist();
+      syncActiveWorkspaceChat(chat.id);
+      persist({ skipFullSync: true });
     });
   }
 
@@ -312,13 +370,15 @@ function bindChatChromeControls(chat, card) {
     control.addEventListener("change", (event) => {
       chat.settings[event.target.dataset.setting] = event.target.value;
       chat.updatedAt = Date.now();
+      syncActiveWorkspaceChat(chat.id);
       renderChatChrome(chat.id);
-      persist();
+      persist({ skipFullSync: true });
     });
     control.addEventListener("input", (event) => {
       chat.settings[event.target.dataset.setting] = event.target.value;
       chat.updatedAt = Date.now();
-      persist();
+      syncActiveWorkspaceChat(chat.id);
+      persist({ skipFullSync: true });
     });
   }
 
@@ -351,7 +411,8 @@ function bindChatChromeControls(chat, card) {
     chat.draftPrompt = promptInput.value;
     chat.updatedAt = Date.now();
     resizePromptInput(promptInput);
-    persist();
+    syncActiveWorkspaceChat(chat.id);
+    persist({ skipFullSync: true });
   });
   promptInput.addEventListener("keydown", (event) => {
     if (shouldToggleVoiceFromKey(event)) {

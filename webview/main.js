@@ -49,6 +49,7 @@ let chatUserScrollIntent = new Set();
 let pendingChatRenderIds = new Set();
 let pendingChatRenderFrame = 0;
 let pendingPersistTimer = 0;
+let pendingPersistNeedsFullSync = false;
 let pendingBoardUsageFrame = 0;
 let pendingIncomingChatMessages = [];
 let pendingIncomingChatFrame = 0;
@@ -102,11 +103,14 @@ function createRenderStats() {
     chatMessages: 0,
     messageNodesCreated: 0,
     messageNodesReused: 0,
+    messageTailPatches: 0,
+    messageFullRebuilds: 0,
     toolbar: 0,
     usage: 0,
     incomingBatches: 0,
     incomingMessages: 0,
-    persistFlushes: 0
+    persistFlushes: 0,
+    persistFullSyncs: 0
   };
 }
 
