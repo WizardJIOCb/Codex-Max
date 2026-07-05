@@ -6,6 +6,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   const bootstrapUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "bootstrap.js"));
   const utilsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "utils.js"));
   const markdownUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "markdown.js"));
+  const imagePreviewUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "image-preview.js"));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "main.js"));
   const bootstrapJson = JSON.stringify(bootstrap || {}).replace(/</g, "\\u003c");
 
@@ -24,6 +25,7 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${bootstrapUri}"></script>
   <script nonce="${nonce}" src="${utilsUri}"></script>
   <script nonce="${nonce}" src="${markdownUri}"></script>
+  <script nonce="${nonce}" src="${imagePreviewUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
