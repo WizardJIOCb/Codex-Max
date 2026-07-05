@@ -813,11 +813,9 @@ class ChatBoardPanel {
       "--vad-thold", "0.70",
       "--no-fallback"
     ];
-    const child = cp.spawn(executable, args, {
+    const child = spawnExternalProcess(executable, args, {
       cwd: recordDir,
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: getSpawnEnv()
+      stdio: ["pipe", "pipe", "pipe"]
     });
     const session = {
       child,
@@ -1291,12 +1289,9 @@ class CodexRunner {
       }
     });
 
-    const child = cp.spawn(executable.command, args, {
+    const child = spawnExternalProcess(executable, args, {
       cwd,
-      shell: executable.shell,
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: getSpawnEnv()
+      stdio: ["pipe", "pipe", "pipe"]
     });
 
     this.processes.set(chatId, child);
@@ -1808,6 +1803,87 @@ function shouldUseShell(command) {
   return process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
 }
 
+function normalizeExecutable(value) {
+  if (value && typeof value === "object") {
+    return {
+      command: String(value.command || ""),
+      shell: typeof value.shell === "boolean" ? value.shell : shouldUseShell(value.command || "")
+    };
+  }
+
+  const command = String(value || "");
+  return {
+    command,
+    shell: shouldUseShell(command)
+  };
+}
+
+function spawnExternalProcess(executable, args, options) {
+  const normalized = normalizeExecutable(executable);
+  const spawnOptions = options || {};
+  const env = Object.assign({}, getSpawnEnv(), spawnOptions.env || {});
+  return cp.spawn(normalized.command, Array.isArray(args) ? args : [], {
+    cwd: spawnOptions.cwd,
+    shell: typeof spawnOptions.shell === "boolean" ? spawnOptions.shell : normalized.shell,
+    windowsHide: true,
+    stdio: spawnOptions.stdio || ["ignore", "pipe", "pipe"],
+    env
+  });
+}
+
+function runExternalCommand(executable, args, options) {
+  const runOptions = options || {};
+  const normalized = normalizeExecutable(executable);
+  const commandArgs = Array.isArray(args) ? args : [];
+  const timeoutMs = Number.isFinite(Number(runOptions.timeoutMs)) ? Number(runOptions.timeoutMs) : 5000;
+
+  return new Promise((resolve, reject) => {
+    const child = spawnExternalProcess(normalized, commandArgs, {
+      cwd: runOptions.cwd,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      finish(new Error(`Timed out running ${normalized.command} ${commandArgs.join(" ")}.`));
+    }, timeoutMs);
+
+    const finish = (error, result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      if (error) {
+        try {
+          child.kill();
+        } catch {
+          // Process may have already exited.
+        }
+        reject(error);
+        return;
+      }
+      resolve(result);
+    };
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      finish(error);
+    });
+    child.on("close", (code, signal) => {
+      finish(null, { code, signal, stdout, stderr, timedOut });
+    });
+  });
+}
+
 function stripQuotes(value) {
   return String(value).replace(/^["']|["']$/g, "");
 }
@@ -1986,9 +2062,8 @@ function defaultCaptureDevices() {
 
 function runWhisperCli(executable, modelPath, audioPath) {
   return new Promise((resolve, reject) => {
-    const child = cp.spawn(executable, ["-m", modelPath, "-f", audioPath, "-l", "ru", "-nt", "-nf"], {
+    const child = spawnExternalProcess(executable, ["-m", modelPath, "-f", audioPath, "-l", "ru", "-nt", "-nf"], {
       cwd: path.dirname(executable),
-      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -2182,11 +2257,8 @@ function stripAnsi(value) {
 
 function requestAppServer(executable, method, params) {
   return new Promise((resolve, reject) => {
-    const child = cp.spawn(executable.command, ["app-server", "--stdio"], {
-      shell: executable.shell,
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: getSpawnEnv()
+    const child = spawnExternalProcess(executable, ["app-server", "--stdio"], {
+      stdio: ["pipe", "pipe", "pipe"]
     });
 
     let stdoutBuffer = "";
@@ -2281,50 +2353,8 @@ function requestAppServer(executable, method, params) {
 }
 
 function runCodexCommand(executable, args, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const child = cp.spawn(executable.command, args, {
-      shell: executable.shell,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: getSpawnEnv()
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timeout = setTimeout(() => {
-      finish(new Error(`Timed out running ${executable.command} ${args.join(" ")}.`));
-    }, timeoutMs || 5000);
-
-    const finish = (error, result) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timeout);
-      if (error) {
-        try {
-          child.kill();
-        } catch {
-          // Process may have already exited.
-        }
-        reject(error);
-        return;
-      }
-      resolve(result);
-    };
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", (error) => {
-      finish(error);
-    });
-    child.on("close", (code) => {
-      finish(null, { code, stdout, stderr });
-    });
+  return runExternalCommand(executable, args, {
+    timeoutMs: timeoutMs || 5000
   });
 }
 
