@@ -1,0 +1,114 @@
+{
+  "name": "codex-max",
+  "displayName": "Codex Max",
+  "description": "A VS Code workspace tab with a compact multi-chat Codex board.",
+  "version": "0.0.96",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:codexMax.openChatBoard",
+    "onCommand:codexMax.addChat"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexMax.openChatBoard",
+        "title": "Open Chat Board",
+        "category": "Codex Max",
+        "icon": {
+          "light": "resources/codex-max-light.svg",
+          "dark": "resources/codex-max-dark.svg"
+        }
+      },
+      {
+        "command": "codexMax.addChat",
+        "title": "Add Chat",
+        "category": "Codex Max",
+        "icon": "$(add)"
+      }
+    ],
+    "configuration": {
+      "title": "Codex Max",
+      "properties": {
+        "codexMax.codexExecutable": {
+          "type": "string",
+          "default": "codex",
+          "description": "Codex CLI executable used by chat cards."
+        },
+        "codexMax.defaultSandbox": {
+          "type": "string",
+          "enum": [
+            "read-only",
+            "workspace-write",
+            "danger-full-access"
+          ],
+          "default": "read-only",
+          "description": "Sandbox mode used when a new Codex thread starts."
+        },
+        "codexMax.model": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Codex model override passed to the CLI."
+        },
+        "codexMax.maxVisibleChats": {
+          "type": "number",
+          "default": 12,
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Soft limit for chats shown on one board before the UI warns you."
+        },
+        "codexMax.chatsPerRow": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 12,
+          "description": "Default number of chat cards per horizontal row in the Codex Max board."
+        },
+        "codexMax.chatsPerColumn": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Default number of chat card rows visible vertically in the Codex Max board."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "codexMax.openChatBoard"
+        },
+        {
+          "command": "codexMax.addChat"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "codexMax.openChatBoard",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "codexMax.openChatBoard",
+          "group": "navigation@8"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js",
+    "package": "vsce package --no-dependencies",
+    "install:local": "npm run package && code --install-extension codex-max-0.0.96.vsix --force"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2"
+  }
+}
