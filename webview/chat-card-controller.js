@@ -120,8 +120,10 @@ function renderChatMessagesPanel(chatId, options) {
   const previousScroll = captureSingleMessageScrollState(card);
   const expandedKeys = captureExpandedMessageKeys(messages);
   const existingByKey = new Map();
-  for (const node of messages.querySelectorAll(":scope > [data-message-key]")) {
-    existingByKey.set(node.dataset.messageKey, node);
+  for (const node of Array.from(messages.children)) {
+    if (node.dataset && node.dataset.messageKey) {
+      existingByKey.set(node.dataset.messageKey, node);
+    }
   }
 
   const template = document.createElement("template");
@@ -160,8 +162,10 @@ function captureExpandedMessageKeys(messages) {
     return keys;
   }
 
-  for (const item of messages.querySelectorAll(":scope > .message.expanded[data-message-key]")) {
-    keys.add(item.dataset.messageKey);
+  for (const item of Array.from(messages.children)) {
+    if (item.classList && item.classList.contains("message") && item.classList.contains("expanded") && item.dataset && item.dataset.messageKey) {
+      keys.add(item.dataset.messageKey);
+    }
   }
   return keys;
 }
