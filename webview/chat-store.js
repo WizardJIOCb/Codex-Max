@@ -90,6 +90,12 @@ function updateChat(chatId, updater, options) {
 
   updater(chat);
   chat.updatedAt = Date.now();
+  if (chatUpdateBatchDepth > 0) {
+    recordBatchedChatRender(chatId, updateOptions);
+    batchedPersistNeeded = true;
+    return;
+  }
+
   if (updateOptions.render === "chrome") {
     renderChatChrome(chatId);
   } else if (updateOptions.render === "messages") {
@@ -105,6 +111,80 @@ function updateChat(chatId, updater, options) {
     scheduleChatCardRender(chatId);
   }
   persist();
+}
+
+function withBatchedChatUpdates(callback) {
+  chatUpdateBatchDepth += 1;
+  try {
+    callback();
+  } finally {
+    chatUpdateBatchDepth -= 1;
+    if (chatUpdateBatchDepth === 0) {
+      flushBatchedChatUpdates();
+    }
+  }
+}
+
+function recordBatchedChatRender(chatId, options) {
+  const current = batchedChatRenderModes.get(chatId) || "";
+  const next = batchedRenderMode(options);
+  batchedChatRenderModes.set(chatId, strongestRenderMode(current, next));
+}
+
+function batchedRenderMode(options) {
+  if (!options || !options.render) {
+    return "card";
+  }
+  if (options.render === "chrome+messages") {
+    return "chrome+messages";
+  }
+  if (options.render === "chrome") {
+    return "chrome";
+  }
+  if (options.render === "messages" || options.render === "event") {
+    return "messages";
+  }
+  return "card";
+}
+
+function strongestRenderMode(a, b) {
+  const order = {
+    "": 0,
+    messages: 1,
+    chrome: 2,
+    "chrome+messages": 3,
+    card: 4
+  };
+  return (order[b] || 0) > (order[a] || 0) ? b : a;
+}
+
+function flushBatchedChatUpdates() {
+  const renderModes = batchedChatRenderModes;
+  const shouldPersist = batchedPersistNeeded;
+  batchedChatRenderModes = new Map();
+  batchedPersistNeeded = false;
+
+  for (const [chatId, mode] of renderModes) {
+    if (mode === "card") {
+      renderChatCard(chatId, { deferAfterRender: true });
+    } else if (mode === "chrome+messages") {
+      renderChatChrome(chatId);
+      renderChatMessagesPanel(chatId, { deferAfterRender: true });
+    } else if (mode === "chrome") {
+      renderChatChrome(chatId);
+    } else {
+      renderChatMessagesPanel(chatId, { deferAfterRender: true });
+    }
+  }
+
+  if (renderModes.size) {
+    refreshBoardUsage();
+    updateVoiceButtons();
+    syncDurationTimer();
+  }
+  if (shouldPersist) {
+    persist();
+  }
 }
 
 function persist() {

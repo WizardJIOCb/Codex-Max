@@ -2,6 +2,11 @@
 window.addEventListener("message", (event) => {
   const message = event.data;
 
+  if (isBatchedIncomingChatMessage(message)) {
+    enqueueIncomingChatMessage(message);
+    return;
+  }
+
   if (message.type === "hydrate") {
     try {
       config = Object.assign(config, message.config || {});
@@ -23,6 +28,7 @@ window.addEventListener("message", (event) => {
   }
 
   if (message.type === "chatStatus") {
+    flushIncomingChatMessages();
     updateChat(message.chatId, (chat) => {
       if (message.status === "running") {
         chat.runStartedAt = chat.runStartedAt && chat.status === "running" ? chat.runStartedAt : Date.now();
@@ -39,6 +45,7 @@ window.addEventListener("message", (event) => {
   }
 
   if (message.type === "chatThinking") {
+    flushIncomingChatMessages();
     updateChat(message.chatId, (chat) => {
       chat.isThinking = Boolean(message.thinking) && chat.status === "running";
     }, { render: "messages" });
@@ -46,19 +53,10 @@ window.addEventListener("message", (event) => {
   }
 
   if (message.type === "chatSession") {
+    flushIncomingChatMessages();
     updateChat(message.chatId, (chat) => {
       chat.sessionId = message.sessionId;
     }, { render: "chrome" });
-    return;
-  }
-
-  if (message.type === "chatActivity") {
-    addMessage(message.chatId, "activity", message.text);
-    return;
-  }
-
-  if (message.type === "assistantMessage") {
-    addAssistantMessage(message.chatId, message.text);
     return;
   }
 
@@ -128,6 +126,7 @@ window.addEventListener("message", (event) => {
   }
 
   if (message.type === "chatError") {
+    flushIncomingChatMessages();
     updateChat(message.chatId, (chat) => {
       if (chat.status === "running") {
         chat.runFinishedAt = Date.now();
@@ -145,11 +144,6 @@ window.addEventListener("message", (event) => {
         at: Date.now()
       });
     }, { render: "chrome+messages" });
-  }
-
-  if (message.type === "chatEvent") {
-    addEventMessage(message.chatId, message.event);
-    return;
   }
 
   if (message.type === "accountRateLimits") {
@@ -299,9 +293,62 @@ window.addEventListener("message", (event) => {
   }
 
   if (message.type === "officialOpened") {
+    flushIncomingChatMessages();
     updateChat(message.chatId, (chat) => {
       chat.status = "opened";
       chat.lastOpenedAt = Date.now();
     }, { render: "chrome" });
   }
 });
+
+function isBatchedIncomingChatMessage(message) {
+  return message && (
+    message.type === "chatActivity" ||
+    message.type === "assistantMessage" ||
+    message.type === "chatEvent"
+  );
+}
+
+function enqueueIncomingChatMessage(message) {
+  pendingIncomingChatMessages.push(message);
+  if (pendingIncomingChatFrame) {
+    return;
+  }
+
+  pendingIncomingChatFrame = requestAnimationFrame(flushIncomingChatMessages);
+}
+
+function flushIncomingChatMessages() {
+  if (pendingIncomingChatFrame) {
+    cancelAnimationFrame(pendingIncomingChatFrame);
+    pendingIncomingChatFrame = 0;
+  }
+
+  if (!pendingIncomingChatMessages.length) {
+    return;
+  }
+
+  const messages = pendingIncomingChatMessages;
+  pendingIncomingChatMessages = [];
+  withBatchedChatUpdates(() => {
+    for (const message of messages) {
+      applyIncomingChatMessage(message);
+    }
+  });
+}
+
+function applyIncomingChatMessage(message) {
+  if (message.type === "chatActivity") {
+    addMessage(message.chatId, "activity", message.text);
+    return;
+  }
+
+  if (message.type === "assistantMessage") {
+    addAssistantMessage(message.chatId, message.text);
+    return;
+  }
+
+  if (message.type === "chatEvent") {
+    addEventMessage(message.chatId, message.event);
+  }
+}

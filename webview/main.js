@@ -50,6 +50,11 @@ let pendingChatRenderIds = new Set();
 let pendingChatRenderFrame = 0;
 let pendingPersistTimer = 0;
 let pendingBoardUsageFrame = 0;
+let pendingIncomingChatMessages = [];
+let pendingIncomingChatFrame = 0;
+let chatUpdateBatchDepth = 0;
+let batchedChatRenderModes = new Map();
+let batchedPersistNeeded = false;
 let rateLimitsRequestedOnce = false;
 let voiceRecognition = null;
 let voiceChatId = "";
@@ -77,6 +82,9 @@ window.addEventListener("unhandledrejection", (event) => {
 vscode.postMessage({ type: "ready" });
 
 window.addEventListener("beforeunload", () => {
+  if (typeof flushIncomingChatMessages === "function") {
+    flushIncomingChatMessages();
+  }
   if (typeof persistNow === "function") {
     persistNow();
   }
