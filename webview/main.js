@@ -48,6 +48,8 @@ let chatStickyScroll = new Set();
 let chatUserScrollIntent = new Set();
 let pendingChatRenderIds = new Set();
 let pendingChatRenderFrame = 0;
+let pendingPersistTimer = 0;
+let pendingBoardUsageFrame = 0;
 let rateLimitsRequestedOnce = false;
 let voiceRecognition = null;
 let voiceChatId = "";
@@ -73,3 +75,9 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 vscode.postMessage({ type: "ready" });
+
+window.addEventListener("beforeunload", () => {
+  if (typeof persistNow === "function") {
+    persistNow();
+  }
+});

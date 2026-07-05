@@ -74,6 +74,17 @@ function refreshToolbar() {
 }
 
 function refreshBoardUsage() {
+  if (pendingBoardUsageFrame) {
+    return;
+  }
+
+  pendingBoardUsageFrame = requestAnimationFrame(() => {
+    pendingBoardUsageFrame = 0;
+    refreshBoardUsageNow();
+  });
+}
+
+function refreshBoardUsageNow() {
   const usageNode = document.querySelector(".boardUsage");
   if (!usageNode) {
     return;
@@ -112,7 +123,7 @@ function refreshAccountLimitsFromPill() {
   }
 
   accountRateLimitsLoading = true;
-  refreshBoardUsage();
+  refreshBoardUsageNow();
   vscode.postMessage({
     type: "refreshRateLimits"
   });

@@ -108,6 +108,22 @@ function updateChat(chatId, updater, options) {
 }
 
 function persist() {
+  if (pendingPersistTimer) {
+    clearTimeout(pendingPersistTimer);
+  }
+
+  pendingPersistTimer = setTimeout(() => {
+    pendingPersistTimer = 0;
+    persistNow();
+  }, 120);
+}
+
+function persistNow() {
+  if (pendingPersistTimer) {
+    clearTimeout(pendingPersistTimer);
+    pendingPersistTimer = 0;
+  }
+
   syncActiveWorkspaceFromState();
   vscode.setState(state);
   vscode.postMessage({ type: "persist", state });
