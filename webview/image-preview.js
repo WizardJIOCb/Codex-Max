@@ -27,15 +27,34 @@ function applyImagePreview(message) {
   const img = element.querySelector("img");
   const placeholder = element.querySelector(".imagePreviewPlaceholder");
   if (message.dataUri && img) {
+    img.onload = () => restoreImagePreviewScroll(element);
     img.src = message.dataUri;
     img.hidden = false;
     element.classList.add("loaded");
+    restoreImagePreviewScroll(element);
     return;
   }
 
   if (placeholder) {
     placeholder.textContent = message.error || "Preview unavailable";
   }
+}
+
+function restoreImagePreviewScroll(element) {
+  const card = element && typeof element.closest === "function" ? element.closest("[data-chat-id]") : null;
+  const chatId = card && card.dataset ? card.dataset.chatId : "";
+  const messages = card ? card.querySelector(".messages") : null;
+  if (!chatId || !messages || typeof stickChatToBottom !== "function") {
+    return;
+  }
+
+  if (!chatStickyScroll.has(chatId) || chatAutoScrollPaused.has(chatId)) {
+    return;
+  }
+
+  const keepBottom = () => stickChatToBottom(chatId, messages);
+  keepBottom();
+  requestAnimationFrame(keepBottom);
 }
 
 function renderImageViewerDialog() {
