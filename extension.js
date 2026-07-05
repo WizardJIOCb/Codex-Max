@@ -6228,7 +6228,7 @@ function getHtml(webview) {
       if (message.type === "chatSession") {
         updateChat(message.chatId, (chat) => {
           chat.sessionId = message.sessionId;
-        });
+        }, { render: "chrome" });
         return;
       }
 
@@ -6255,7 +6255,7 @@ function getHtml(webview) {
         updateChat(message.chatId, (chat) => {
           chat.projectPath = normalizeProjectPath(message.projectPath || currentWorkspacePath() || "");
           chat.title = chatTitleWithProject(chat.title, chat.projectPath);
-        });
+        }, { render: "chrome" });
         activeChatInfoId = message.chatId;
         refreshChatInfoDialog(false);
         return;
@@ -6276,7 +6276,7 @@ function getHtml(webview) {
           updateChat(message.chatId, (chat) => {
             chat.projectPath = workspacePath;
             chat.title = chatTitleWithProject(chat.title, workspacePath);
-          });
+          }, { render: "chrome" });
           activeChatInfoId = message.chatId;
           refreshToolbar();
           refreshChatInfoDialog(false);
@@ -6482,7 +6482,7 @@ function getHtml(webview) {
         updateChat(message.chatId, (chat) => {
           chat.status = "opened";
           chat.lastOpenedAt = Date.now();
-        });
+        }, { render: "chrome" });
       }
     });
 
@@ -7029,6 +7029,34 @@ function getHtml(webview) {
       }
     }
 
+    function renderChatChrome(chatId) {
+      const chat = state.chats.find((item) => item.id === chatId);
+      const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+      if (!chat || !card) {
+        return false;
+      }
+
+      const template = document.createElement("template");
+      template.innerHTML = renderChat(chat).trim();
+      const nextCard = template.content.firstElementChild;
+      const nextHeader = nextCard ? nextCard.querySelector(".chatHeader") : null;
+      const nextComposer = nextCard ? nextCard.querySelector(".composer") : null;
+      const currentHeader = card.querySelector(".chatHeader");
+      const currentComposer = card.querySelector(".composer");
+      if (!nextHeader || !nextComposer || !currentHeader || !currentComposer) {
+        renderChatCard(chatId);
+        return false;
+      }
+
+      currentHeader.replaceWith(nextHeader);
+      currentComposer.replaceWith(nextComposer);
+      bindChatChromeControls(chat, card);
+      refreshBoardUsage();
+      updateVoiceButtons();
+      syncDurationTimer();
+      return true;
+    }
+
     function captureSingleMessageScrollState(card) {
       const chatId = card && card.dataset ? card.dataset.chatId : "";
       const messages = card ? card.querySelector(".messages") : null;
@@ -7123,20 +7151,32 @@ function getHtml(webview) {
       });
     }
 
-    function bindChatCardControls(chat, card, previousScroll, autoScroll) {
+    function bindChatChromeControls(chat, card) {
       if (!chat || !card) {
         return;
       }
 
-      card.querySelector(".title").addEventListener("input", (event) => {
-        chat.title = event.target.value;
-        chat.updatedAt = Date.now();
-        persist();
-      });
+      const title = card.querySelector(".title");
+      if (title) {
+        title.addEventListener("input", (event) => {
+          chat.title = event.target.value;
+          chat.updatedAt = Date.now();
+          persist();
+        });
+      }
 
-      card.querySelector("[data-action='remove']").addEventListener("click", () => removeChat(chat.id));
-      card.querySelector("[data-action='clear']").addEventListener("click", () => clearChat(chat.id));
-      card.querySelector("[data-action='info']").addEventListener("click", () => openChatInfo(chat.id));
+      const removeButton = card.querySelector("[data-action='remove']");
+      const clearButton = card.querySelector("[data-action='clear']");
+      const infoButton = card.querySelector("[data-action='info']");
+      if (removeButton) {
+        removeButton.addEventListener("click", () => removeChat(chat.id));
+      }
+      if (clearButton) {
+        clearButton.addEventListener("click", () => clearChat(chat.id));
+      }
+      if (infoButton) {
+        infoButton.addEventListener("click", () => openChatInfo(chat.id));
+      }
       const contextInfoButton = card.querySelector("[data-action='context-info']");
       if (contextInfoButton) {
         contextInfoButton.addEventListener("click", () => openChatInfo(chat.id));
@@ -7155,19 +7195,22 @@ function getHtml(webview) {
       if (voiceFileButton) {
         voiceFileButton.addEventListener("click", () => pickLocalWhisperAudioFile(chat.id));
       }
-      card.querySelector(".send").addEventListener("click", () => {
-        if (chat.status === "running") {
-          stopChat(chat.id);
-        } else {
-          sendPrompt(chat.id);
-        }
-      });
+      const sendButton = card.querySelector(".send");
+      if (sendButton) {
+        sendButton.addEventListener("click", () => {
+          if (chat.status === "running") {
+            stopChat(chat.id);
+          } else {
+            sendPrompt(chat.id);
+          }
+        });
+      }
 
       for (const control of card.querySelectorAll("[data-setting]")) {
         control.addEventListener("change", (event) => {
           chat.settings[event.target.dataset.setting] = event.target.value;
           chat.updatedAt = Date.now();
-          renderChatCard(chat.id);
+          renderChatChrome(chat.id);
           persist();
         });
         control.addEventListener("input", (event) => {
@@ -7199,6 +7242,9 @@ function getHtml(webview) {
       }
 
       const promptInput = card.querySelector(".promptInput");
+      if (!promptInput) {
+        return;
+      }
       promptInput.addEventListener("input", () => {
         chat.draftPrompt = promptInput.value;
         chat.updatedAt = Date.now();
@@ -7221,6 +7267,14 @@ function getHtml(webview) {
       });
       resizePromptInput(promptInput);
       bindFileDrop(card, chat.id, chat.status === "running");
+    }
+
+    function bindChatCardControls(chat, card, previousScroll, autoScroll) {
+      if (!chat || !card) {
+        return;
+      }
+
+      bindChatChromeControls(chat, card);
 
       const messages = card.querySelector(".messages");
       restoreMessageScroll(chat.id, messages, previousScroll, autoScroll, chatScrollSignature(chat));
@@ -7639,7 +7693,7 @@ function getHtml(webview) {
           chat.settings[setting] = item.value;
           chat.updatedAt = Date.now();
           closeSelectMenu();
-          renderChatCard(chatId);
+          renderChatChrome(chatId);
           persist();
         });
         menu.appendChild(button);
@@ -8588,7 +8642,7 @@ function getHtml(webview) {
       updateChat(activeChatInfoId, (chat) => {
         chat.projectPath = workspacePath;
         chat.title = chatTitleWithProject(chat.title, chat.projectPath);
-      });
+      }, { render: "chrome" });
       refreshChatInfoDialog(false);
     }
 
@@ -9739,7 +9793,7 @@ function getHtml(webview) {
     function openOfficialCodex(chatId, target) {
       updateChat(chatId, (chat) => {
         chat.status = "running";
-      });
+      }, { render: "chrome" });
       vscode.postMessage({
         type: "openOfficialCodex",
         chatId,
@@ -9752,8 +9806,17 @@ function getHtml(webview) {
       if (!card || isRunning) {
         return;
       }
+      if (card.dataset.dropBound === "true") {
+        return;
+      }
+
+      card.dataset.dropBound = "true";
 
       card.addEventListener("dragover", (event) => {
+        const current = state.chats.find((chat) => chat.id === chatId);
+        if (current && current.status === "running") {
+          return;
+        }
         if (!hasDraggedFiles(event)) {
           return;
         }
@@ -9770,6 +9833,10 @@ function getHtml(webview) {
       });
 
       card.addEventListener("drop", (event) => {
+        const current = state.chats.find((chat) => chat.id === chatId);
+        if (current && current.status === "running") {
+          return;
+        }
         if (!hasDraggedFiles(event)) {
           return;
         }
@@ -9846,13 +9913,13 @@ function getHtml(webview) {
       updateChat(chatId, (chat) => {
         const existing = Array.isArray(chat.pendingAttachments) ? chat.pendingAttachments : [];
         chat.pendingAttachments = existing.concat(clean).slice(-20);
-      });
+      }, { render: "chrome" });
     }
 
     function removeAttachment(chatId, attachmentId) {
       updateChat(chatId, (chat) => {
         chat.pendingAttachments = (chat.pendingAttachments || []).filter((item) => item.id !== attachmentId);
-      });
+      }, { render: "chrome" });
     }
 
     function stopChat(chatId) {
@@ -11638,7 +11705,8 @@ function getHtml(webview) {
       });
     }
 
-    function updateChat(chatId, updater) {
+    function updateChat(chatId, updater, options) {
+      const updateOptions = options && typeof options === "object" ? options : {};
       const chat = state.chats.find((item) => item.id === chatId);
       if (!chat) {
         const workspace = workspaceList().find((item) => {
@@ -11655,7 +11723,11 @@ function getHtml(webview) {
 
       updater(chat);
       chat.updatedAt = Date.now();
-      scheduleChatCardRender(chatId);
+      if (updateOptions.render === "chrome") {
+        renderChatChrome(chatId);
+      } else {
+        scheduleChatCardRender(chatId);
+      }
       persist();
     }
 
