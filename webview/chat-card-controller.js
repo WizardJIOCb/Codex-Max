@@ -131,13 +131,14 @@ function renderChatMessagesPanel(chatId, options) {
 
   let reused = 0;
   let created = 0;
+  const animationQueue = [];
 
   if (canPatchTail) {
     reused = tailStart;
     removeMessageChildrenFrom(messages, tailStart);
     const fragment = document.createDocumentFragment();
     for (let index = tailStart; index < entries.length; index += 1) {
-      const nextNode = createMessageNodeFromEntry(entries[index], expandedKeys, animateNewMessages);
+      const nextNode = createMessageNodeFromEntry(entries[index], expandedKeys, animateNewMessages, animationQueue);
       if (nextNode) {
         created += 1;
         fragment.appendChild(nextNode);
@@ -162,7 +163,7 @@ function renderChatMessagesPanel(chatId, options) {
         continue;
       }
 
-      const nextNode = createMessageNodeFromEntry(entry, expandedKeys, animateNewMessages);
+      const nextNode = createMessageNodeFromEntry(entry, expandedKeys, animateNewMessages, animationQueue);
       if (nextNode) {
         created += 1;
         fragment.appendChild(nextNode);
@@ -175,6 +176,7 @@ function renderChatMessagesPanel(chatId, options) {
   countRenderStat("messageNodesReused", reused);
   countRenderStat("messageNodesCreated", created);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
+  startQueuedMessageAnimations(animationQueue, chatId, messages);
   if (!renderOptions.deferAfterRender) {
     refreshBoardUsage();
     updateVoiceButtons();
@@ -204,7 +206,7 @@ function removeMessageChildrenFrom(messages, startIndex) {
   }
 }
 
-function createMessageNodeFromEntry(entry, expandedKeys, animate) {
+function createMessageNodeFromEntry(entry, expandedKeys, animate, animationQueue) {
   if (!entry) {
     return null;
   }
@@ -219,11 +221,153 @@ function createMessageNodeFromEntry(entry, expandedKeys, animate) {
   if (entry.key && expandedKeys.has(entry.key)) {
     restoreExpandedMessage(nextNode);
   }
-  if (animate) {
+  if (shouldAnimateMessageEntry(entry, animate)) {
+    rememberAnimatedMessageKey(entry.key);
     nextNode.classList.add("newMessage");
+    const typewriter = prepareTypewriterMessage(nextNode);
+    if (typewriter && Array.isArray(animationQueue)) {
+      animationQueue.push(typewriter);
+    }
   }
   bindMessageContentControls(nextNode);
   return nextNode;
+}
+
+function shouldAnimateMessageEntry(entry, animate) {
+  if (!animate || prefersReducedMotion()) {
+    return false;
+  }
+  const key = String(entry && entry.key || "");
+  return Boolean(key && !animatedMessageKeys.has(key));
+}
+
+function rememberAnimatedMessageKey(key) {
+  if (!key) {
+    return;
+  }
+  animatedMessageKeys.add(key);
+  if (animatedMessageKeys.size <= 3000) {
+    return;
+  }
+
+  const recent = Array.from(animatedMessageKeys).slice(-1800);
+  animatedMessageKeys = new Set(recent);
+}
+
+function prefersReducedMotion() {
+  return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+
+function prepareTypewriterMessage(node) {
+  if (!node || !node.classList || !node.classList.contains("assistant")) {
+    return null;
+  }
+
+  const segments = [];
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode(textNode) {
+      if (!textNode.nodeValue || !textNode.nodeValue.trim()) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  let current = walker.nextNode();
+  while (current) {
+    const chars = Array.from(current.nodeValue);
+    segments.push({
+      node: current,
+      chars,
+      length: chars.length
+    });
+    current.nodeValue = "";
+    current = walker.nextNode();
+  }
+
+  const total = segments.reduce((sum, segment) => sum + segment.length, 0);
+  if (!total) {
+    return null;
+  }
+
+  node.classList.add("typingMessage");
+  return {
+    node,
+    segments,
+    total
+  };
+}
+
+function startQueuedMessageAnimations(queue, chatId, messages) {
+  if (!Array.isArray(queue) || !queue.length) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    for (const animation of queue) {
+      startTypewriterMessage(animation, chatId, messages);
+    }
+  });
+}
+
+function startTypewriterMessage(animation, chatId, messages) {
+  if (!animation || !animation.node || !animation.segments || !animation.total) {
+    return;
+  }
+
+  const duration = Math.max(520, Math.min(4200, animation.total * 16));
+  const startedAt = performance.now();
+  let previousCount = -1;
+
+  const renderFrame = (now) => {
+    if (!animation.node.isConnected) {
+      return;
+    }
+
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - Math.pow(1 - progress, 2.1);
+    const visibleCount = Math.min(animation.total, Math.max(1, Math.floor(animation.total * eased)));
+    if (visibleCount !== previousCount) {
+      revealTypewriterCharacters(animation.segments, visibleCount);
+      previousCount = visibleCount;
+      keepTypingMessageInView(chatId, messages);
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(renderFrame);
+      return;
+    }
+
+    revealTypewriterCharacters(animation.segments, animation.total);
+    animation.node.classList.remove("typingMessage");
+    keepTypingMessageInView(chatId, messages);
+  };
+
+  requestAnimationFrame(renderFrame);
+}
+
+function revealTypewriterCharacters(segments, visibleCount) {
+  let remaining = visibleCount;
+  for (const segment of segments) {
+    if (remaining <= 0) {
+      segment.node.nodeValue = "";
+    } else if (remaining >= segment.length) {
+      segment.node.nodeValue = segment.chars.join("");
+    } else {
+      segment.node.nodeValue = segment.chars.slice(0, remaining).join("");
+    }
+    remaining -= segment.length;
+  }
+}
+
+function keepTypingMessageInView(chatId, messages) {
+  if (!messages || !chatId || chatAutoScrollPaused.has(chatId)) {
+    return;
+  }
+  if (chatStickyScroll.has(chatId) || isScrolledToBottom(messages)) {
+    messages.scrollTop = messages.scrollHeight;
+    rememberMessageScroll(chatId, messages, undefined, false);
+  }
 }
 
 function captureExpandedMessageKeys(messages) {

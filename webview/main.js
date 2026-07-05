@@ -57,6 +57,7 @@ let pendingIncomingChatFrame = 0;
 let chatUpdateBatchDepth = 0;
 let batchedChatRenderModes = new Map();
 let batchedPersistNeeded = false;
+let animatedMessageKeys = new Set();
 let pendingRenderStatsFrame = 0;
 let rateLimitsRequestedOnce = false;
 let voiceRecognition = null;

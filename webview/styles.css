@@ -371,6 +371,18 @@ select {
   animation-fill-mode: both, both;
 }
 
+.message.assistant.typingMessage::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 1.15em;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--messageText), transparent 20%);
+  vertical-align: -0.18em;
+  animation: typingCaretPulse 760ms ease-in-out infinite;
+}
+
 @keyframes messageEnter {
   from {
     opacity: 0;
@@ -396,11 +408,25 @@ select {
   }
 }
 
+@keyframes typingCaretPulse {
+  0%,
+  100% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .message.newMessage,
   .turnDuration.newMessage,
   .thinkingLine.newMessage {
     animation: none;
+  }
+
+  .message.assistant.typingMessage::after {
+    display: none;
   }
 }
 
