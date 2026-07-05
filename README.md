@@ -2,6 +2,10 @@
 
 Codex Max is a local VS Code extension that opens a workspace tab with a compact board of embedded Codex chats. Each card runs its own Codex CLI thread through `codex exec --json`, so several conversations can stay visible at once.
 
+## Screenshot
+
+![Codex Max chat board](chats.jpg)
+
 ## Run in VS Code
 
 1. Open this folder in VS Code.
