@@ -293,12 +293,12 @@ function parseLimitNode(item, pathParts) {
 function findRemainingPercent(entries) {
   const direct = findNumericEntry(entries, /(remaining|available|left).*(percent|pct)|(percent|pct).*(remaining|available|left)/);
   if (direct !== null) {
-    return normalizePercent(direct);
+    return normalizePercentEntry(direct);
   }
 
   const used = findNumericEntry(entries, /(used|usage|consumed).*(percent|pct)|(percent|pct).*(used|usage|consumed)/);
   if (used !== null) {
-    return Math.max(0, Math.min(100, 100 - normalizePercent(used)));
+    return Math.max(0, Math.min(100, 100 - normalizePercentEntry(used)));
   }
 
   return null;
@@ -307,15 +307,18 @@ function findRemainingPercent(entries) {
 function findNumericEntry(entries, pattern) {
   for (const entry of entries) {
     if (pattern.test(entry.normalized) && Number.isFinite(Number(entry.value))) {
-      return Number(entry.value);
+      return entry;
     }
   }
   return null;
 }
 
-function normalizePercent(value) {
-  const number = Number(value);
-  const percent = number <= 1 ? number * 100 : number;
+function normalizePercentEntry(entry) {
+  const number = Number(entry && entry.value);
+  const key = String(entry && entry.normalized || "");
+  const percent = number > 0 && number < 1
+    ? number * 100
+    : number;
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
