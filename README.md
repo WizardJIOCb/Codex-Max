@@ -65,6 +65,7 @@ Voice input engines:
 - `Off`: hides voice behavior while keeping normal text input.
 
 Local Whisper supports downloading the runtime and selected model from Board Settings. After selecting a model and clicking `Apply`, Codex Max keeps one persistent Whisper process warm so later voice captures do not need to reload the model every time.
+Automatic whisper.cpp runtime installation is platform-aware: Windows x64/Win32 uses the official zip runtime, Linux x64/arm64 uses the official Ubuntu tar.gz runtime, and unsupported platforms show a clear runtime status instead of trying to run Windows-only setup commands. macOS currently needs a manual CLI runtime path because the upstream release asset is an xcframework rather than the CLI binaries Codex Max uses.
 
 Available Local Whisper models include:
 

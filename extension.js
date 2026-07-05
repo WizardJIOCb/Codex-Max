@@ -34,12 +34,72 @@ const DEFAULT_BOARD_SETTINGS = {
   currentWorkspacePath: ""
 };
 
-const WHISPER_RUNTIME = {
-  id: "whisper.cpp-x64",
-  label: "whisper.cpp Windows x64",
-  url: "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
-  executable: ["runtime", "Release", "whisper-cli.exe"]
+const WHISPER_RELEASE_TAG = "v1.9.1";
+const WHISPER_RUNTIME_BASE_URL = `https://github.com/ggml-org/whisper.cpp/releases/download/${WHISPER_RELEASE_TAG}`;
+const WHISPER_RUNTIME_BY_PLATFORM = {
+  "win32-x64": {
+    id: "whisper.cpp-win32-x64",
+    label: "whisper.cpp Windows x64",
+    platform: "Windows x64",
+    archiveName: "whisper-bin-x64.zip",
+    archiveType: "zip",
+    executable: ["runtime", "Release", "whisper-cli.exe"],
+    streamExecutable: ["runtime", "Release", "whisper-stream.exe"],
+    benchExecutable: ["runtime", "Release", "whisper-bench.exe"],
+    cliNames: ["whisper-cli.exe"],
+    streamNames: ["whisper-stream.exe"],
+    benchNames: ["whisper-bench.exe"],
+    supported: true
+  },
+  "win32-ia32": {
+    id: "whisper.cpp-win32-ia32",
+    label: "whisper.cpp Windows Win32",
+    platform: "Windows Win32",
+    archiveName: "whisper-bin-Win32.zip",
+    archiveType: "zip",
+    executable: ["runtime", "Release", "whisper-cli.exe"],
+    streamExecutable: ["runtime", "Release", "whisper-stream.exe"],
+    benchExecutable: ["runtime", "Release", "whisper-bench.exe"],
+    cliNames: ["whisper-cli.exe"],
+    streamNames: ["whisper-stream.exe"],
+    benchNames: ["whisper-bench.exe"],
+    supported: true
+  },
+  "linux-x64": {
+    id: "whisper.cpp-linux-x64",
+    label: "whisper.cpp Ubuntu x64",
+    platform: "Linux x64",
+    archiveName: "whisper-bin-ubuntu-x64.tar.gz",
+    archiveType: "tar.gz",
+    executable: ["runtime", "whisper-cli"],
+    streamExecutable: ["runtime", "whisper-stream"],
+    benchExecutable: ["runtime", "whisper-bench"],
+    cliNames: ["whisper-cli"],
+    streamNames: ["whisper-stream"],
+    benchNames: ["whisper-bench"],
+    supported: true
+  },
+  "linux-arm64": {
+    id: "whisper.cpp-linux-arm64",
+    label: "whisper.cpp Ubuntu arm64",
+    platform: "Linux arm64",
+    archiveName: "whisper-bin-ubuntu-arm64.tar.gz",
+    archiveType: "tar.gz",
+    executable: ["runtime", "whisper-cli"],
+    streamExecutable: ["runtime", "whisper-stream"],
+    benchExecutable: ["runtime", "whisper-bench"],
+    cliNames: ["whisper-cli"],
+    streamNames: ["whisper-stream"],
+    benchNames: ["whisper-bench"],
+    supported: true
+  }
 };
+
+for (const runtime of Object.values(WHISPER_RUNTIME_BY_PLATFORM)) {
+  runtime.url = `${WHISPER_RUNTIME_BASE_URL}/${runtime.archiveName}`;
+}
+
+const WHISPER_RUNTIME = getWhisperRuntimeDescriptor();
 
 const LOCAL_WHISPER_MODELS = [
   {
@@ -565,17 +625,15 @@ class ChatBoardPanel {
   }
 
   whisperRuntimePath() {
-    return path.join(this.whisperRoot(), ...WHISPER_RUNTIME.executable);
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "cli");
   }
 
   whisperStreamPath() {
-    const releaseDir = path.join(this.whisperRoot(), "runtime", "Release");
-    return path.join(releaseDir, "whisper-stream.exe");
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "stream");
   }
 
   whisperBenchPath() {
-    const releaseDir = path.join(this.whisperRoot(), "runtime", "Release");
-    return path.join(releaseDir, "whisper-bench.exe");
+    return resolveWhisperRuntimeExecutable(this.whisperRoot(), "bench");
   }
 
   whisperModelPath(model) {
@@ -584,8 +642,8 @@ class ChatBoardPanel {
 
   async whisperStatus() {
     const runtimePath = this.whisperRuntimePath();
-    const runtimeInstalled = await fileExists(runtimePath);
-    const captureDevices = await listWindowsCaptureDevices();
+    const runtimeInstalled = WHISPER_RUNTIME.supported && await fileExists(runtimePath);
+    const captureDevices = await listCaptureDevices();
     const models = [];
     for (const model of LOCAL_WHISPER_MODELS) {
       const modelPath = this.whisperModelPath(model);
@@ -598,7 +656,8 @@ class ChatBoardPanel {
     return {
       runtime: Object.assign({}, WHISPER_RUNTIME, {
         installed: runtimeInstalled,
-        path: runtimePath
+        path: runtimePath,
+        platformKey: currentPlatformKey()
       }),
       captureDevices,
       models
@@ -638,18 +697,29 @@ class ChatBoardPanel {
   }
 
   async downloadWhisperRuntime() {
+    if (!WHISPER_RUNTIME.supported || !WHISPER_RUNTIME.url) {
+      const message = WHISPER_RUNTIME.reason || `Automatic whisper.cpp runtime install is not available for ${platformDisplayName()}.`;
+      await this.postWhisperStatus({ message });
+      this.post({
+        type: "whisperDownloadError",
+        target: "runtime",
+        error: message
+      });
+      return;
+    }
+
     const root = this.whisperRoot();
-    const downloadPath = path.join(root, "downloads", "whisper-bin-x64.zip");
+    const downloadPath = path.join(root, "downloads", WHISPER_RUNTIME.archiveName);
     const runtimeDir = path.join(root, "runtime");
     try {
       await fs.promises.mkdir(path.dirname(downloadPath), { recursive: true });
       await fs.promises.mkdir(runtimeDir, { recursive: true });
-      await this.postWhisperStatus({ downloading: "runtime", progress: 0, message: "Downloading whisper.cpp..." });
+      await this.postWhisperStatus({ downloading: "runtime", progress: 0, message: `Downloading ${WHISPER_RUNTIME.label}...` });
       await downloadFile(WHISPER_RUNTIME.url, downloadPath, (progress) => {
         this.post({ type: "whisperDownloadProgress", target: "runtime", progress });
       });
-      await extractZip(downloadPath, runtimeDir);
-      await this.postWhisperStatus({ message: "whisper.cpp runtime installed." });
+      await extractRuntimeArchive(downloadPath, runtimeDir, WHISPER_RUNTIME);
+      await this.postWhisperStatus({ message: `${WHISPER_RUNTIME.label} installed.` });
     } catch (error) {
       this.post({
         type: "whisperDownloadError",
@@ -794,7 +864,10 @@ class ChatBoardPanel {
     this.killPersistentWhisper();
 
     if (!await fileExists(executable)) {
-      throw new Error("whisper-stream.exe is not installed. Click Update/Install for whisper.cpp runtime.");
+      const installHint = WHISPER_RUNTIME.supported
+        ? "Click Update/Install for whisper.cpp runtime."
+        : (WHISPER_RUNTIME.reason || "Automatic runtime install is not available on this platform.");
+      throw new Error(`whisper-stream is not installed. ${installHint}`);
     }
     if (!modelPath || !await fileExists(modelPath)) {
       throw new Error("Selected Whisper model is not installed.");
@@ -1803,6 +1876,98 @@ function shouldUseShell(command) {
   return process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
 }
 
+function currentPlatformKey() {
+  return `${process.platform}-${process.arch}`;
+}
+
+function platformDisplayName() {
+  if (process.platform === "win32") {
+    return `Windows ${process.arch}`;
+  }
+  if (process.platform === "darwin") {
+    return `macOS ${process.arch}`;
+  }
+  if (process.platform === "linux") {
+    return `Linux ${process.arch}`;
+  }
+  return `${process.platform} ${process.arch}`;
+}
+
+function getWhisperRuntimeDescriptor() {
+  const platformKey = currentPlatformKey();
+  const runtime = WHISPER_RUNTIME_BY_PLATFORM[platformKey];
+  if (runtime) {
+    return Object.assign({}, runtime, {
+      platformKey,
+      supported: true
+    });
+  }
+
+  const isMac = process.platform === "darwin";
+  return {
+    id: `whisper.cpp-${platformKey}`,
+    label: `whisper.cpp ${platformDisplayName()}`,
+    platform: platformDisplayName(),
+    platformKey,
+    archiveName: "",
+    archiveType: "",
+    url: "",
+    executable: ["runtime", process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"],
+    streamExecutable: ["runtime", process.platform === "win32" ? "whisper-stream.exe" : "whisper-stream"],
+    benchExecutable: ["runtime", process.platform === "win32" ? "whisper-bench.exe" : "whisper-bench"],
+    cliNames: [process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli"],
+    streamNames: [process.platform === "win32" ? "whisper-stream.exe" : "whisper-stream"],
+    benchNames: [process.platform === "win32" ? "whisper-bench.exe" : "whisper-bench"],
+    supported: false,
+    reason: isMac
+      ? "Automatic whisper.cpp CLI runtime install is not available for macOS yet; the upstream release provides an xcframework, not the CLI binaries Codex Max needs."
+      : `Automatic whisper.cpp runtime install is not available for ${platformDisplayName()} yet.`
+  };
+}
+
+function resolveWhisperRuntimeExecutable(root, kind) {
+  const runtimeDir = path.join(root, "runtime");
+  const fallbackKey = kind === "stream" ? "streamExecutable" : kind === "bench" ? "benchExecutable" : "executable";
+  const namesKey = kind === "stream" ? "streamNames" : kind === "bench" ? "benchNames" : "cliNames";
+  const fallback = path.join(root, ...(WHISPER_RUNTIME[fallbackKey] || WHISPER_RUNTIME.executable || []));
+  const found = findFirstExistingFile(runtimeDir, WHISPER_RUNTIME[namesKey] || []);
+  return found || fallback;
+}
+
+function findFirstExistingFile(root, names) {
+  if (!root || !fs.existsSync(root) || !Array.isArray(names) || !names.length) {
+    return "";
+  }
+
+  const wanted = new Set(names.map((name) => String(name).toLowerCase()));
+  const queue = [{ dir: root, depth: 0 }];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || current.depth > 5) {
+      continue;
+    }
+
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(current.dir, entry.name);
+      if (entry.isFile() && wanted.has(entry.name.toLowerCase())) {
+        return fullPath;
+      }
+      if (entry.isDirectory()) {
+        queue.push({ dir: fullPath, depth: current.depth + 1 });
+      }
+    }
+  }
+
+  return "";
+}
+
 function normalizeExecutable(value) {
   if (value && typeof value === "object") {
     return {
@@ -1953,16 +2118,28 @@ function downloadFile(url, destination, onProgress, redirectCount) {
   });
 }
 
-function extractZip(zipPath, destination) {
+function extractRuntimeArchive(archivePath, destination, runtime) {
+  if (!runtime || !runtime.supported) {
+    return Promise.reject(new Error(runtime && runtime.reason ? runtime.reason : "This whisper.cpp runtime is not supported on the current platform."));
+  }
+  if (runtime.archiveType === "zip") {
+    return extractZipArchive(archivePath, destination);
+  }
+  if (runtime.archiveType === "tar.gz") {
+    return extractTarGzArchive(archivePath, destination);
+  }
+  return Promise.reject(new Error(`Unsupported whisper.cpp archive type: ${runtime.archiveType || "unknown"}.`));
+}
+
+function extractZipArchive(zipPath, destination) {
   return new Promise((resolve, reject) => {
     if (process.platform !== "win32") {
-      reject(new Error("Automatic whisper.cpp runtime extraction is currently implemented for Windows only."));
+      reject(new Error("Zip extraction for whisper.cpp runtime is currently implemented through Windows PowerShell."));
       return;
     }
 
     const script = `Expand-Archive -LiteralPath ${powershellSingleQuote(zipPath)} -DestinationPath ${powershellSingleQuote(destination)} -Force`;
-    const child = cp.spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      windowsHide: true,
+    const child = spawnExternalProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stderr = "";
@@ -1980,11 +2157,21 @@ function extractZip(zipPath, destination) {
   });
 }
 
+function extractTarGzArchive(archivePath, destination) {
+  return runExternalCommand("tar", ["-xzf", archivePath, "-C", destination], {
+    timeoutMs: 120000
+  }).then((result) => {
+    if (result.code !== 0) {
+      throw new Error(result.stderr.trim() || `tar exited with code ${result.code}.`);
+    }
+  });
+}
+
 function powershellSingleQuote(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-function listWindowsCaptureDevices() {
+function listCaptureDevices() {
   return new Promise((resolve) => {
     if (process.platform !== "win32") {
       resolve(defaultCaptureDevices());
@@ -2010,8 +2197,7 @@ function listWindowsCaptureDevices() {
       "$items | ConvertTo-Json -Compress"
     ].join("; ");
 
-    const child = cp.spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      windowsHide: true,
+    const child = spawnExternalProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -2055,7 +2241,7 @@ function parseCaptureDevicesFromText(value) {
 function defaultCaptureDevices() {
   return [{
     id: -1,
-    label: "Default Windows microphone",
+    label: process.platform === "win32" ? "Default Windows microphone" : "Default microphone",
     isDefault: true
   }];
 }
@@ -7937,6 +8123,7 @@ function getHtml(webview) {
 
       const modelId = normalizeLocalWhisperModel(modelSelect.value || state.boardSettings.localWhisperModel);
       const runtimeInstalled = Boolean(whisperStatus && whisperStatus.runtime && whisperStatus.runtime.installed);
+      const runtimeSupported = !whisperStatus || !whisperStatus.runtime || whisperStatus.runtime.supported !== false;
       const selectedModel = whisperStatus && Array.isArray(whisperStatus.models)
         ? whisperStatus.models.find((model) => model.id === modelId)
         : null;
@@ -7948,11 +8135,11 @@ function getHtml(webview) {
         captureSelect.innerHTML = renderCaptureDeviceOptions(captureId);
         captureSelect.value = String(captureId);
       }
-      runtimeButton.disabled = downloadingTarget === "runtime";
+      runtimeButton.disabled = downloadingTarget === "runtime" || !runtimeSupported;
       modelButton.disabled = Boolean(downloadingTarget && downloadingTarget !== "runtime") || !modelId;
       runtimeButton.textContent = downloadingTarget === "runtime"
         ? "Downloading..."
-        : (runtimeInstalled ? "Update" : "Install");
+        : (!runtimeSupported ? "Unavailable" : (runtimeInstalled ? "Update" : "Install"));
       modelButton.textContent = downloadingTarget === modelId
         ? "Downloading..."
         : (modelInstalled ? "Update" : "Install");
@@ -7964,8 +8151,15 @@ function getHtml(webview) {
       const modelStatus = whisperStatus && Array.isArray(whisperStatus.models)
         ? whisperStatus.models.find((model) => model.id === selected.id)
         : null;
-      const runtimeText = runtime && runtime.installed ? "Runtime installed" : "Runtime not installed";
+      const runtimeSupported = !runtime || runtime.supported !== false;
+      const runtimeText = runtime && runtime.installed
+        ? "Runtime installed"
+        : (runtimeSupported ? "Runtime not installed" : "Runtime unavailable");
       const modelText = modelStatus && modelStatus.installed ? "Model installed" : "Model not installed";
+      const runtimePlatform = runtime && runtime.platform ? runtime.platform : "";
+      const runtimeReason = runtime && runtime.reason
+        ? '<div class="whisperNotice">' + escapeHtml(runtime.reason) + '</div>'
+        : "";
       const progressPercent = Math.max(0, Math.min(100, Math.round(Number(whisperDownloadState && whisperDownloadState.progress || 0))));
       const progress = whisperDownloadState
         ? '<div class="whisperProgress" style="--progress: ' + progressPercent + '%"><span>' + escapeHtml(whisperDownloadState.message || "Downloading...") + '</span><strong>' + progressPercent + '%</strong></div>'
@@ -7983,8 +8177,10 @@ function getHtml(webview) {
       return \`
         <div><strong>\${escapeHtml(selected.label)}</strong> <span>\${escapeHtml(selected.size)}</span></div>
         <div>\${escapeHtml(selected.description)}. Multilingual model, supports Russian.</div>
+        \${runtimePlatform ? '<div>Runtime platform: ' + escapeHtml(runtimePlatform) + '</div>' : ''}
         <div>\${escapeHtml(runtimeText)} · \${escapeHtml(modelText)}</div>
-        <div>Default microphone uses the current Windows recording device. Pick a named input if Windows default is wrong.</div>
+        <div>\${runtimeSupported ? 'Default microphone uses the current system recording device. Pick a named input if the default is wrong.' : 'Local Whisper can still download models, but live transcription needs a supported local runtime.'}</div>
+        \${runtimeReason}
         \${progress}
         \${micNotice}
         \${prewarmNotice}
@@ -7995,7 +8191,7 @@ function getHtml(webview) {
       const selected = normalizeLocalWhisperCaptureId(selectedValue);
       const devices = whisperStatus && Array.isArray(whisperStatus.captureDevices) && whisperStatus.captureDevices.length
         ? whisperStatus.captureDevices
-        : [{ id: -1, label: "Default Windows microphone", isDefault: true }];
+        : [{ id: -1, label: "Default microphone", isDefault: true }];
       const seen = new Set();
       const options = [];
 
@@ -8006,7 +8202,7 @@ function getHtml(webview) {
         }
         seen.add(id);
         const prefix = id >= 0 ? id + ": " : "";
-        const label = String(device.label || (id === -1 ? "Default Windows microphone" : "Microphone " + id)).trim();
+        const label = String(device.label || (id === -1 ? "Default microphone" : "Microphone " + id)).trim();
         options.push('<option value="' + escapeAttr(id) + '"' + (id === selected ? " selected" : "") + '>' + escapeHtml(prefix + label) + '</option>');
       }
 
