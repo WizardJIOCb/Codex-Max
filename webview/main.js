@@ -1,9 +1,3 @@
-const vscode = acquireVsCodeApi();
-const bootstrap = window.CODEX_MAX_BOOTSTRAP || {};
-const DEFAULT_CHAT_BACKGROUND = String(bootstrap.defaultChatBackground || "#252526");
-const DEFAULT_WHISPER_LIVE_STOP_GRACE_MS = Number(bootstrap.defaultWhisperLiveStopGraceMs || 2600);
-const MAX_ATTACHMENT_BYTES = Number(bootstrap.maxAttachmentBytes || 262144);
-const LOCAL_WHISPER_MODELS = Array.isArray(bootstrap.localWhisperModels) ? bootstrap.localWhisperModels : [];
 const app = document.getElementById("app");
 
 let state = {
@@ -1902,7 +1896,7 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
     <div class="modalBackdrop" id="boardSettingsModal" hidden>
       <section class="modal boardSettingsModal" role="dialog" aria-modal="true" aria-labelledby="boardSettingsTitle">
         <header class="modalHeader">
-          <h2 id="boardSettingsTitle">Board settings</h2>
+          <h2 id="boardSettingsTitle">Board settings${EXTENSION_VERSION ? ' <span class="settingsVersion">v' + escapeHtml(EXTENSION_VERSION) + '</span>' : ""}</h2>
           <button class="iconButton secondary" id="closeBoardSettings" title="Close">x</button>
         </header>
         <div class="modalBody">

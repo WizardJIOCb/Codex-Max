@@ -5,6 +5,7 @@ const https = require("https");
 const os = require("os");
 const path = require("path");
 const { getHtml: renderWebviewHtml } = require("./webview/html");
+const { version: EXTENSION_VERSION } = require("./package.json");
 
 const VIEW_TYPE = "codexMax.chatBoard";
 const STATE_KEY = "codexMax.chatBoardState";
@@ -3627,6 +3628,7 @@ function createInitialChat() {
 
 function getHtml(webview, extensionUri) {
   return renderWebviewHtml(webview, extensionUri, {
+    extensionVersion: EXTENSION_VERSION,
     defaultChatBackground: DEFAULT_CHAT_BACKGROUND,
     defaultWhisperLiveStopGraceMs: DEFAULT_WHISPER_LIVE_STOP_GRACE_MS,
     maxAttachmentBytes: MAX_ATTACHMENT_BYTES,

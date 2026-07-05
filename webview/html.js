@@ -3,6 +3,7 @@ const vscode = require("vscode");
 function getHtml(webview, extensionUri, bootstrap) {
   const nonce = getNonce();
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "styles.css"));
+  const bootstrapUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "bootstrap.js"));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "main.js"));
   const bootstrapJson = JSON.stringify(bootstrap || {}).replace(/</g, "\\u003c");
 
@@ -18,6 +19,7 @@ function getHtml(webview, extensionUri, bootstrap) {
 <body>
   <div id="app"></div>
   <script nonce="${nonce}">window.CODEX_MAX_BOOTSTRAP = ${bootstrapJson};</script>
+  <script nonce="${nonce}" src="${bootstrapUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

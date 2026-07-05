@@ -2037,6 +2037,13 @@ textarea:focus {
   font-weight: 650;
 }
 
+.settingsVersion {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .modalBody {
   display: grid;
   gap: 12px;
