@@ -17,8 +17,11 @@ function getHtml(webview, extensionUri, bootstrap) {
   const scrollManagerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "scroll-manager.js"));
   const voiceUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "voice.js"));
   const chatRenderUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-render.js"));
+  const toolbarControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "toolbar-controller.js"));
+  const chatCardControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-card-controller.js"));
   const chatInfoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-info.js"));
   const boardSettingsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-settings.js"));
+  const messageRouterUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "message-router.js"));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "main.js"));
   const bootstrapJson = JSON.stringify(bootstrap || {}).replace(/</g, "\\u003c");
 
@@ -48,8 +51,11 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${scrollManagerUri}"></script>
   <script nonce="${nonce}" src="${voiceUri}"></script>
   <script nonce="${nonce}" src="${chatRenderUri}"></script>
+  <script nonce="${nonce}" src="${toolbarControllerUri}"></script>
+  <script nonce="${nonce}" src="${chatCardControllerUri}"></script>
   <script nonce="${nonce}" src="${chatInfoUri}"></script>
   <script nonce="${nonce}" src="${boardSettingsUri}"></script>
+  <script nonce="${nonce}" src="${messageRouterUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
