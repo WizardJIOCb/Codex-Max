@@ -19,9 +19,12 @@ function getHtml(webview, extensionUri, bootstrap) {
   const chatRenderUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-render.js"));
   const toolbarControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "toolbar-controller.js"));
   const chatCardControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-card-controller.js"));
+  const chatActionsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-actions.js"));
   const chatInfoUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "chat-info.js"));
   const boardSettingsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-settings.js"));
+  const boardRendererUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "board-renderer.js"));
   const messageRouterUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "message-router.js"));
+  const keyboardControllerUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "keyboard-controller.js"));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "webview", "main.js"));
   const bootstrapJson = JSON.stringify(bootstrap || {}).replace(/</g, "\\u003c");
 
@@ -53,9 +56,12 @@ function getHtml(webview, extensionUri, bootstrap) {
   <script nonce="${nonce}" src="${chatRenderUri}"></script>
   <script nonce="${nonce}" src="${toolbarControllerUri}"></script>
   <script nonce="${nonce}" src="${chatCardControllerUri}"></script>
+  <script nonce="${nonce}" src="${chatActionsUri}"></script>
   <script nonce="${nonce}" src="${chatInfoUri}"></script>
   <script nonce="${nonce}" src="${boardSettingsUri}"></script>
+  <script nonce="${nonce}" src="${boardRendererUri}"></script>
   <script nonce="${nonce}" src="${messageRouterUri}"></script>
+  <script nonce="${nonce}" src="${keyboardControllerUri}"></script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

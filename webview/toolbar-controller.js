@@ -117,3 +117,15 @@ function refreshAccountLimitsFromPill() {
     type: "refreshRateLimits"
   });
 }
+
+function requestRateLimitsOnce() {
+  if (rateLimitsRequestedOnce) {
+    return;
+  }
+
+  rateLimitsRequestedOnce = true;
+  vscode.postMessage({
+    type: "refreshRateLimits",
+    silent: true
+  });
+}

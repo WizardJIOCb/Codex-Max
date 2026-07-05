@@ -37,7 +37,8 @@ function estimateAttachmentTokens(chat) {
 
 
 function renderContextIndicator(info) {
-  const angle = Math.max(0, Math.min(360, Math.round(info.percent * 36) / 10));
+  const rawAngle = Math.max(0, Math.min(360, info.percent * 3.6));
+  const angle = info.used > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
   return '<button class="contextIndicator" type="button" data-action="context-info" style="--contextAngle: ' + angle + 'deg;" title="' + escapeAttr(info.tooltip + "\nClick for chat information") + '" aria-label="' + escapeAttr(info.tooltip + "\nOpen chat information") + '"></button>';
 }
 
@@ -379,7 +380,7 @@ function contextUsageInfo(chat, model) {
   const tooltip = [
     "Context window:",
     displayPercent + "% full",
-    formatTokenCount(used) + " / " + formatTokenCount(limit) + " tokens used"
+    formatExactTokenCount(used) + " / " + formatExactTokenCount(limit) + " tokens used"
   ].join("\n");
 
   return {
@@ -437,4 +438,9 @@ function formatTokenCount(value) {
     return Math.round(tokens / 100) / 10 + "k";
   }
   return String(tokens);
+}
+
+function formatExactTokenCount(value) {
+  const tokens = Math.max(0, Math.round(Number(value || 0)));
+  return tokens.toLocaleString("en-US");
 }

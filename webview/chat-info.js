@@ -123,6 +123,7 @@ function chatInfoHtml(chat) {
   const stats = chatInfoStats(chat);
   const settings = normalizeSettings(chat.settings);
   const context = contextUsageInfo(chat, settings.model);
+  const contextPercent = formatContextPercent(context.percent);
   const sandboxLabel = selectedLabel(settings.sandbox, [
     ["read-only", "Read access"],
     ["workspace-write", "Write access"],
@@ -155,7 +156,7 @@ function chatInfoHtml(chat) {
       <div class="chatInfoMeta">
         <span>${escapeHtml(statusLabel(chat.status))}</span>
         <span>${escapeHtml(stats.ageLabel)}</span>
-        <span>${escapeHtml(formatTokenCount(context.used))} / ${escapeHtml(formatTokenCount(context.limit))} tokens</span>
+        <span>${escapeHtml(formatExactTokenCount(context.used))} / ${escapeHtml(formatExactTokenCount(context.limit))} tokens</span>
       </div>
     </section>
 
@@ -197,12 +198,12 @@ function chatInfoHtml(chat) {
     <section class="chatInfoSection">
       <h3>Tokens</h3>
       <div class="chatInfoGrid">
-        ${chatInfoItem("Estimated total", formatTokenCount(stats.totalTokens))}
-        ${chatInfoItem("Incoming", formatTokenCount(stats.incomingTokens))}
-        ${chatInfoItem("Outgoing", formatTokenCount(stats.outgoingTokens))}
-        ${chatInfoItem("Events / metadata", formatTokenCount(stats.eventTokens))}
-        ${chatInfoItem("Context used", context.percent + "%")}
-        ${chatInfoItem("Context window", formatTokenCount(context.limit))}
+        ${chatInfoItem("Estimated total", formatExactTokenCount(stats.totalTokens))}
+        ${chatInfoItem("Incoming", formatExactTokenCount(stats.incomingTokens))}
+        ${chatInfoItem("Outgoing", formatExactTokenCount(stats.outgoingTokens))}
+        ${chatInfoItem("Events / metadata", formatExactTokenCount(stats.eventTokens))}
+        ${chatInfoItem("Context used", formatExactTokenCount(context.used) + " / " + formatExactTokenCount(context.limit) + " (" + contextPercent + "%)")}
+        ${chatInfoItem("Context window", formatExactTokenCount(context.limit))}
       </div>
     </section>
 
@@ -229,6 +230,14 @@ function chatInfoHtml(chat) {
       </div>
     </section>
   `;
+}
+
+function formatContextPercent(value) {
+  const percent = Number(value || 0);
+  if (percent > 0 && percent < 1) {
+    return String(Math.round(percent * 100) / 100);
+  }
+  return String(Math.round(percent * 10) / 10).replace(/\.0$/, "");
 }
 
 function chatInfoItem(label, value, mono) {
