@@ -38,6 +38,47 @@ Codex Max is a local VS Code extension that opens a workspace tab with a compact
 
 Use the gear button in the Codex Max toolbar to set how many chats are shown horizontally. The value is stored per workspace and can be set from 1 to 12.
 You can also set how many chat rows are visible vertically. The value is stored per workspace and can be set from 1 to 6.
+Board settings also control chat card height, chat background color, send shortcut behavior, auto-scroll, Codex CLI status, account limits, and voice input.
+
+## Workspaces
+
+Codex Max has its own workspace switcher in the board toolbar. A Codex Max workspace is a saved board layout with its own chat cards, display settings, selected project folder, and chat state. This lets you keep separate boards for different projects without mixing their conversations.
+
+- Use the workspace dropdown near the visible chat counter to switch between saved workspaces.
+- Use `New workspace` to create a fresh board. New workspaces start with four chats in a 2x2 layout.
+- Each chat title includes the current project folder name in square brackets, for example `Codex chat 1 [codex.max]`.
+- In `Chat information`, `Chat project` is the folder used for that chat, while `Current workspace` is the active VS Code workspace folder. You can choose a project manually or use the current workspace.
+- Workspace-specific settings are saved independently, including rows, columns, max chat height, background color, and voice settings.
+
+## Voice Input
+
+Codex Max can insert dictated text into the active chat composer. The microphone button is shown in each chat composer, and a configurable shortcut can toggle voice input for the chat whose input is focused.
+
+Voice input engines:
+
+- `Browser Web Speech`: uses the browser/webview speech API when it is available. It depends on VS Code/webview microphone permissions and the host platform.
+- `Local Whisper`: uses local `whisper.cpp` runtime and free GGML Whisper models. Audio is transcribed locally and is not sent to the selected Codex model.
+- `Off`: hides voice behavior while keeping normal text input.
+
+Local Whisper supports downloading the runtime and selected model from Board Settings. After selecting a model and clicking `Apply`, Codex Max keeps one persistent Whisper process warm so later voice captures do not need to reload the model every time.
+
+Available Local Whisper models include:
+
+- `Whisper tiny q5_1`: smallest and fastest multilingual model.
+- `Whisper base q5_1`: balanced small multilingual model.
+- `Whisper base q8_0`: a cleaner base model with a larger quantization.
+- `Whisper small q5_1`: recommended balanced model for Russian.
+- `Whisper small q8_0`: slower than q5_1, often cleaner.
+- `Whisper medium q5_0`: larger multilingual model with better recognition but slower startup and transcription.
+- `Whisper large-v3 turbo Russian q5_1`: Russian fine-tuned model for better Russian recognition.
+
+Useful voice settings:
+
+- `Voice shortcut`: keyboard shortcut for toggling voice input.
+- `Microphone`: selected capture device for Local Whisper. `Default` uses the current Windows recording device.
+- `Mic stop delay`: how long Codex Max waits after stopping recording so final words can still be transcribed.
+- `Request access`: asks the webview for microphone access when Browser Web Speech is used.
+- `Windows settings`: opens Windows microphone privacy settings.
 
 ## Event Details
 
