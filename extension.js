@@ -6278,8 +6278,11 @@ function getHtml(webview) {
             chat.title = chatTitleWithProject(chat.title, workspacePath);
           });
           activeChatInfoId = message.chatId;
+          refreshToolbar();
+          refreshChatInfoDialog(false);
+        } else {
+          refreshToolbar();
         }
-        render();
         persist();
         return;
       }
@@ -6780,8 +6783,6 @@ function getHtml(webview) {
       closeWorkspaceMenu();
       const previousBoardScroll = renderOptions.preserveBoardScroll ? captureBoardScrollState() : null;
       const previousScrollState = captureMessageScrollState();
-      const chatCount = state.chats.length;
-      const overLimit = chatCount > config.maxVisibleChats;
       const board = normalizeBoardSettings(state.boardSettings);
       const configuredColumns = board.chatsPerRow;
       const configuredRows = board.chatsPerColumn;
@@ -6794,13 +6795,6 @@ function getHtml(webview) {
       const localWhisperModel = board.localWhisperModel;
       const localWhisperCaptureId = board.localWhisperCaptureId;
       const localWhisperStopGraceMs = board.localWhisperStopGraceMs;
-      const usage = boardUsageInfo(state.chats, state.accountRateLimits);
-      const workspacePath = currentWorkspacePath();
-      const workspaceName = projectFolderName(workspacePath) || config.workspaceName;
-      const columns = chatCount === 1 ? 1 : Math.max(1, Math.min(configuredColumns, chatCount));
-      const rows = chatCount ? Math.max(1, Math.min(configuredRows, Math.ceil(chatCount / columns))) : configuredRows;
-      const gridClass = 'grid cols-' + columns + ' rows-' + rows + (maxChatHeight ? ' height-capped' : '');
-      const gridStyle = maxChatHeight ? ' style="--chatMaxHeight: ' + maxChatHeight + 'px; grid-auto-rows: ' + maxChatHeight + 'px; min-height: 0;"' : '';
 
       document.documentElement.style.setProperty("--chatSurface", chatBackground);
       app.style.setProperty("--chatSurface", chatBackground);
@@ -6808,24 +6802,9 @@ function getHtml(webview) {
 
       app.innerHTML = \`
         <div class="shell" style="--chatSurface: \${escapeAttr(chatBackground)}; background: \${escapeAttr(chatBackground)};">
-          <header class="toolbar">
-            <div class="brand">
-              <strong>Codex Max</strong>
-              <span title="\${escapeAttr(workspacePath)}">\${escapeHtml(workspaceName)}</span>
-            </div>
-            <span class="counter">\${chatCount}/\${config.maxVisibleChats} visible target</span>
-            \${renderWorkspaceSelector()}
-            \${renderBoardUsage(usage)}
-            \${overLimit ? '<span class="hint">Board is getting dense</span>' : ''}
-            <button id="openBoardSettings" class="secondary" title="Board settings">
-              <svg viewBox="0 0 24 24" aria-hidden="true" class="smallIcon">
-                <path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2.5h-4L9.6 5a8 8 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5A8.6 8.6 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a8 8 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"></path>
-              </svg>
-            </button>
-            <button id="addChat" title="Add chat">+</button>
-          </header>
+          \${renderToolbar()}
           <main class="board">
-            \${chatCount ? '<section class="' + gridClass + '"' + gridStyle + '>' + state.chats.map(renderChat).join("") + '</section>' : '<section class="empty">No chats yet</section>'}
+            \${renderBoardGrid(board)}
           </main>
           \${renderBoardSettingsDialog(configuredColumns, configuredRows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs)}
           \${renderChatInfoDialog()}
@@ -6833,216 +6812,137 @@ function getHtml(webview) {
         </div>
       \`;
 
-      document.getElementById("addChat").addEventListener("click", addChat);
-      document.getElementById("openBoardSettings").addEventListener("click", openBoardSettings);
-      bindBoardUsageRefresh();
-      const workspaceSelector = document.getElementById("workspaceSelector");
-      if (workspaceSelector) {
-        workspaceSelector.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openWorkspaceMenu(workspaceSelector);
-        });
-        workspaceSelector.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") {
-            return;
-          }
-
-          event.preventDefault();
-          openWorkspaceMenu(workspaceSelector);
-        });
-      }
+      bindToolbarControls();
       bindBoardSettingsDialog();
       bindChatInfoDialog();
       bindImageViewerDialog();
 
-      for (const chat of state.chats) {
-        const card = document.querySelector('[data-chat-id="' + chat.id + '"]');
-        if (!card) {
-          continue;
-        }
-
-        card.querySelector(".title").addEventListener("input", (event) => {
-          chat.title = event.target.value;
-          chat.updatedAt = Date.now();
-          persist();
-        });
-
-        card.querySelector("[data-action='remove']").addEventListener("click", () => removeChat(chat.id));
-        card.querySelector("[data-action='clear']").addEventListener("click", () => clearChat(chat.id));
-        card.querySelector("[data-action='info']").addEventListener("click", () => openChatInfo(chat.id));
-        const contextInfoButton = card.querySelector("[data-action='context-info']");
-        if (contextInfoButton) {
-          contextInfoButton.addEventListener("click", () => openChatInfo(chat.id));
-        }
-        const attachButton = card.querySelector("[data-action='attach']");
-        if (attachButton) {
-          attachButton.addEventListener("click", () => {
-            vscode.postMessage({ type: "pickFiles", chatId: chat.id });
-          });
-        }
-        const voiceButton = card.querySelector("[data-action='voice']");
-        if (voiceButton) {
-          voiceButton.addEventListener("click", () => toggleVoiceInput(chat.id));
-        }
-        const voiceFileButton = card.querySelector("[data-action='voice-file']");
-        if (voiceFileButton) {
-          voiceFileButton.addEventListener("click", () => pickLocalWhisperAudioFile(chat.id));
-        }
-        card.querySelector(".send").addEventListener("click", () => {
-          if (chat.status === "running") {
-            stopChat(chat.id);
-          } else {
-            sendPrompt(chat.id);
-          }
-        });
-
-        for (const control of card.querySelectorAll("[data-setting]")) {
-        control.addEventListener("change", (event) => {
-          chat.settings[event.target.dataset.setting] = event.target.value;
-          chat.updatedAt = Date.now();
-          renderChatCard(chat.id);
-          persist();
-        });
-          control.addEventListener("input", (event) => {
-            chat.settings[event.target.dataset.setting] = event.target.value;
-            chat.updatedAt = Date.now();
-            persist();
-          });
-        }
-
-        for (const chip of card.querySelectorAll("[data-select-setting]")) {
-          chip.addEventListener("click", (event) => {
-            event.stopPropagation();
-            openSelectMenu(chat.id, event.currentTarget);
-          });
-          chip.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") {
-              return;
-            }
-
-            event.preventDefault();
-            openSelectMenu(chat.id, event.currentTarget);
-          });
-        }
-
-        for (const remove of card.querySelectorAll("[data-remove-attachment]")) {
-          remove.addEventListener("click", (event) => {
-            removeAttachment(chat.id, event.currentTarget.dataset.removeAttachment);
-          });
-        }
-
-        const promptInput = card.querySelector(".promptInput");
-        promptInput.addEventListener("input", () => {
-          chat.draftPrompt = promptInput.value;
-          chat.updatedAt = Date.now();
-          resizePromptInput(promptInput);
-          persist();
-        });
-        promptInput.addEventListener("keydown", (event) => {
-          if (shouldToggleVoiceFromKey(event)) {
-            event.preventDefault();
-            toggleVoiceInput(chat.id);
-            return;
-          }
-
-          if (!shouldSendFromKey(event)) {
-            return;
-          }
-
-            event.preventDefault();
-            sendPrompt(chat.id);
-        });
-        resizePromptInput(promptInput);
-        bindFileDrop(card, chat.id, chat.status === "running");
-
-        const messages = card.querySelector(".messages");
-        restoreMessageScroll(chat.id, messages, previousScrollState.get(chat.id), autoScroll, chatScrollSignature(chat));
-        if (messages) {
-          bindMessageScrollControls(chat.id, messages);
-        }
-
-        for (const summary of card.querySelectorAll(".eventSummary")) {
-          summary.addEventListener("click", (event) => {
-            const item = event.currentTarget.closest(".message.event");
-            if (item) {
-              toggleEventDetails(item);
-            }
-          });
-          summary.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") {
-              return;
-            }
-
-            event.preventDefault();
-            const item = event.currentTarget.closest(".message.event");
-            if (item) {
-              toggleEventDetails(item);
-            }
-          });
-        }
-
-        for (const summary of card.querySelectorAll(".changeCard")) {
-          summary.addEventListener("click", (event) => {
-            const item = event.currentTarget.closest(".message.changeSummary");
-            if (item) {
-              toggleChangeDetails(item);
-            }
-          });
-          summary.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter" && event.key !== " ") {
-              return;
-            }
-
-            event.preventDefault();
-            const item = event.currentTarget.closest(".message.changeSummary");
-            if (item) {
-              toggleChangeDetails(item);
-            }
-          });
-        }
-
-        for (const link of card.querySelectorAll("[data-open-file]")) {
-          link.addEventListener("click", (event) => {
-            event.preventDefault();
-            vscode.postMessage({
-              type: "openFile",
-              path: event.currentTarget.dataset.openFile
-            });
-          });
-        }
-
-        for (const link of card.querySelectorAll("[data-open-url]")) {
-          link.addEventListener("click", (event) => {
-            event.preventDefault();
-            vscode.postMessage({
-              type: "openExternal",
-              url: event.currentTarget.dataset.openUrl
-            });
-          });
-        }
-
-        for (const preview of card.querySelectorAll("[data-image-path]")) {
-          requestImagePreview(preview);
-        }
-
-        for (const preview of card.querySelectorAll("[data-image-open]")) {
-          preview.addEventListener("click", (event) => {
-            event.preventDefault();
-            openImageViewer(event.currentTarget);
-          });
-        }
-
-        for (const button of card.querySelectorAll("[data-copy-chat]")) {
-          button.addEventListener("click", (event) => {
-            event.preventDefault();
-            copyMessageText(event.currentTarget);
-          });
-        }
-      }
+      bindChatCards(previousScrollState, autoScroll);
 
       restoreBoardScroll(previousBoardScroll);
       updateVoiceButtons();
       syncDurationTimer();
+    }
+
+    function renderBoardGrid(boardSettings) {
+      const board = normalizeBoardSettings(boardSettings || state.boardSettings);
+      const chatCount = state.chats.length;
+      if (!chatCount) {
+        return '<section class="empty">No chats yet</section>';
+      }
+
+      const configuredColumns = board.chatsPerRow;
+      const configuredRows = board.chatsPerColumn;
+      const maxChatHeight = board.maxChatHeight;
+      const columns = chatCount === 1 ? 1 : Math.max(1, Math.min(configuredColumns, chatCount));
+      const rows = Math.max(1, Math.min(configuredRows, Math.ceil(chatCount / columns)));
+      const gridClass = 'grid cols-' + columns + ' rows-' + rows + (maxChatHeight ? ' height-capped' : '');
+      const gridStyle = maxChatHeight ? ' style="--chatMaxHeight: ' + maxChatHeight + 'px; grid-auto-rows: ' + maxChatHeight + 'px; min-height: 0;"' : '';
+      return '<section class="' + gridClass + '"' + gridStyle + '>' + state.chats.map(renderChat).join("") + '</section>';
+    }
+
+    function refreshBoardGrid(options) {
+      const refreshOptions = options && typeof options === "object" ? options : {};
+      clearPendingChatRenders();
+      const boardNode = document.querySelector(".board");
+      if (!boardNode) {
+        render(refreshOptions);
+        return;
+      }
+
+      const previousBoardScroll = refreshOptions.preserveBoardScroll ? captureBoardScrollState() : null;
+      const previousScrollState = captureMessageScrollState();
+      const board = normalizeBoardSettings(state.boardSettings);
+      boardNode.innerHTML = renderBoardGrid(board);
+      bindChatCards(previousScrollState, board.autoScroll);
+      refreshToolbar();
+      restoreBoardScroll(previousBoardScroll);
+      updateVoiceButtons();
+      syncDurationTimer();
+    }
+
+    function bindChatCards(previousScrollState, autoScroll) {
+      const scrollState = previousScrollState || new Map();
+      for (const chat of state.chats) {
+        const card = document.querySelector('[data-chat-id="' + chat.id + '"]');
+        if (card) {
+          bindChatCardControls(chat, card, scrollState.get(chat.id), autoScroll);
+        }
+      }
+    }
+
+    function renderToolbar() {
+      const chatCount = state.chats.length;
+      const overLimit = chatCount > config.maxVisibleChats;
+      const usage = boardUsageInfo(state.chats, state.accountRateLimits);
+      const workspacePath = currentWorkspacePath();
+      const workspaceName = projectFolderName(workspacePath) || config.workspaceName;
+
+      return \`
+        <header class="toolbar">
+          <div class="brand">
+            <strong>Codex Max</strong>
+            <span title="\${escapeAttr(workspacePath)}">\${escapeHtml(workspaceName)}</span>
+          </div>
+          <span class="counter">\${chatCount}/\${config.maxVisibleChats} visible target</span>
+          \${renderWorkspaceSelector()}
+          \${renderBoardUsage(usage)}
+          \${overLimit ? '<span class="hint">Board is getting dense</span>' : ''}
+          <button id="openBoardSettings" class="secondary" title="Board settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="smallIcon">
+              <path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2.5h-4L9.6 5a8 8 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5A8.6 8.6 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a8 8 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"></path>
+            </svg>
+          </button>
+          <button id="addChat" title="Add chat">+</button>
+        </header>
+      \`;
+    }
+
+    function bindToolbarControls() {
+      const addChatButton = document.getElementById("addChat");
+      const settingsButton = document.getElementById("openBoardSettings");
+      if (addChatButton) {
+        addChatButton.addEventListener("click", addChat);
+      }
+      if (settingsButton) {
+        settingsButton.addEventListener("click", openBoardSettings);
+      }
+      bindBoardUsageRefresh();
+
+      const workspaceSelector = document.getElementById("workspaceSelector");
+      if (!workspaceSelector) {
+        return;
+      }
+
+      workspaceSelector.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openWorkspaceMenu(workspaceSelector);
+      });
+      workspaceSelector.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+
+        event.preventDefault();
+        openWorkspaceMenu(workspaceSelector);
+      });
+    }
+
+    function refreshToolbar() {
+      const toolbar = document.querySelector(".toolbar");
+      if (!toolbar) {
+        return;
+      }
+
+      const template = document.createElement("template");
+      template.innerHTML = renderToolbar().trim();
+      const nextToolbar = template.content.firstElementChild;
+      if (!nextToolbar) {
+        return;
+      }
+
+      toolbar.replaceWith(nextToolbar);
+      bindToolbarControls();
     }
 
     function scheduleChatCardRender(chatId) {
@@ -9666,7 +9566,7 @@ function getHtml(webview) {
 
     function addChat() {
       state.chats.push(createChat(state.chats.length + 1));
-      render({ preserveBoardScroll: true });
+      refreshBoardGrid({ preserveBoardScroll: true });
       persist();
     }
 
@@ -9802,7 +9702,7 @@ function getHtml(webview) {
       if (!state.chats.length) {
         state.chats.push(createChat(1));
       }
-      render({ preserveBoardScroll: true });
+      refreshBoardGrid({ preserveBoardScroll: true });
       persist();
     }
 
