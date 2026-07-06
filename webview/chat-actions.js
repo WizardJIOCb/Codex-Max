@@ -16,6 +16,7 @@ function clearChat(chatId) {
   updateChat(chatId, (chat) => {
     chat.status = "idle";
     chat.editingMessageAt = 0;
+    chat.editingOriginalMessages = [];
     chat.draftPrompt = "";
     chat.messages = [{
       role: "system",
@@ -74,6 +75,7 @@ function beginEditUserMessage(chatId, messageIndex) {
   }
 
   updateChat(chatId, (current) => {
+    current.editingOriginalMessages = current.messages.slice(index).map(cloneMessageForEdit);
     current.status = "idle";
     current.isThinking = false;
     current.runStartedAt = 0;
@@ -97,9 +99,17 @@ function beginEditUserMessage(chatId, messageIndex) {
 
 function cancelEditUserMessage(chatId) {
   updateChat(chatId, (chat) => {
+    if (Array.isArray(chat.editingOriginalMessages) && chat.editingOriginalMessages.length) {
+      chat.messages = chat.messages.concat(chat.editingOriginalMessages.map(cloneMessageForEdit));
+    }
     chat.editingMessageAt = 0;
+    chat.editingOriginalMessages = [];
     chat.draftPrompt = "";
-  }, { render: "chrome" });
+  }, { render: "chrome+messages" });
+}
+
+function cloneMessageForEdit(message) {
+  return JSON.parse(JSON.stringify(message || {}));
 }
 
 function editablePromptFromUserMessage(text) {
@@ -153,6 +163,7 @@ function sendPrompt(chatId) {
   chat.draftPrompt = "";
   chat.pendingAttachments = [];
   chat.editingMessageAt = 0;
+  chat.editingOriginalMessages = [];
   chat.updatedAt = now;
   chat.runStartedAt = now;
   chat.runFinishedAt = 0;

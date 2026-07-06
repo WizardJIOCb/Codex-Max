@@ -65,26 +65,17 @@ function normalizeWorkspaceProfile(workspace, index) {
 function normalizeChat(chat, index, fallbackWorkspacePath) {
   const source = chat || {};
   const now = Date.now();
-  const messages = Array.isArray(source.messages) ? source.messages.map((item) => ({
-    role: String(item.role || "assistant"),
-    text: String(item.text || ""),
-    at: Number(item.at || now),
-    eventId: item.eventId ? String(item.eventId) : "",
-    kind: item.kind ? String(item.kind) : "",
-    status: item.status ? String(item.status) : "",
-    title: item.title ? String(item.title) : "",
-    detail: item.detail ? String(item.detail) : "",
-    runStartedAt: Number(item.runStartedAt || 0),
-    runFinishedAt: Number(item.runFinishedAt || 0),
-    raw: item.raw ? String(item.raw) : "",
-    changes: Array.isArray(item.changes) ? item.changes.map(normalizeChangeEntry) : []
-  })) : [];
+  const messages = Array.isArray(source.messages) ? source.messages.map((item) => normalizeChatMessage(item, now)) : [];
+  const editingOriginalMessages = Array.isArray(source.editingOriginalMessages)
+    ? source.editingOriginalMessages.map((item) => normalizeChatMessage(item, now))
+    : [];
   repairFileChangeSummaries(messages);
+  repairFileChangeSummaries(editingOriginalMessages);
   const messageTimes = messages.map((item) => item.at).filter((value) => Number.isFinite(value) && value > 0);
   const firstMessageAt = messageTimes.length ? Math.min.apply(null, messageTimes) : now;
   const lastMessageAt = messageTimes.length ? Math.max.apply(null, messageTimes) : firstMessageAt;
   const createdAt = Number(source.createdAt || firstMessageAt || now) || now;
-    const updatedAt = Number(source.updatedAt || source.lastOpenedAt || lastMessageAt || createdAt) || createdAt;
+  const updatedAt = Number(source.updatedAt || source.lastOpenedAt || lastMessageAt || createdAt) || createdAt;
   const status = source.status === "running" ? "idle" : String(source.status || "idle");
   const runStartedAt = Number(source.runStartedAt || 0);
   const runFinishedAt = Number(source.runFinishedAt || 0);
@@ -100,6 +91,7 @@ function normalizeChat(chat, index, fallbackWorkspacePath) {
     projectPath,
     draftPrompt: String(source.draftPrompt || ""),
     editingMessageAt: Number(source.editingMessageAt || 0),
+    editingOriginalMessages,
     lastOpenedAt: Number(source.lastOpenedAt || 0),
     createdAt,
     updatedAt,
@@ -109,6 +101,24 @@ function normalizeChat(chat, index, fallbackWorkspacePath) {
     settings: normalizeSettings(source.settings),
     pendingAttachments: Array.isArray(source.pendingAttachments) ? source.pendingAttachments.map(normalizeAttachment) : [],
     messages
+  };
+}
+
+function normalizeChatMessage(item, fallbackTime) {
+  const source = item || {};
+  return {
+    role: String(source.role || "assistant"),
+    text: String(source.text || ""),
+    at: Number(source.at || fallbackTime || Date.now()),
+    eventId: source.eventId ? String(source.eventId) : "",
+    kind: source.kind ? String(source.kind) : "",
+    status: source.status ? String(source.status) : "",
+    title: source.title ? String(source.title) : "",
+    detail: source.detail ? String(source.detail) : "",
+    runStartedAt: Number(source.runStartedAt || 0),
+    runFinishedAt: Number(source.runFinishedAt || 0),
+    raw: source.raw ? String(source.raw) : "",
+    changes: Array.isArray(source.changes) ? source.changes.map(normalizeChangeEntry) : []
   };
 }
 
@@ -225,6 +235,7 @@ function createChatForWorkspace(index, workspacePath) {
     projectPath,
     draftPrompt: "",
     editingMessageAt: 0,
+    editingOriginalMessages: [],
     lastOpenedAt: 0,
     createdAt: now,
     updatedAt: now,
