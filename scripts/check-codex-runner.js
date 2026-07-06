@@ -2,7 +2,7 @@ const assert = require("assert");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { buildCodexArgs } = require("../lib/codex-runner");
+const { buildCodexArgs, createGroupedLogBuffer } = require("../lib/codex-runner");
 const { spawnExternalProcess } = require("../lib/platform");
 
 async function main() {
@@ -44,8 +44,21 @@ async function main() {
   if (process.platform === "win32") {
     await assertWindowsCmdKeepsSpacedArgs();
   }
+  assertGroupedLogBuffer();
 
   console.log("Codex runner args smoke-check passed.");
+}
+
+function assertGroupedLogBuffer() {
+  const flushed = [];
+  const buffer = createGroupedLogBuffer((detail) => flushed.push(detail), 10000);
+  buffer.push("ERROR first line");
+  buffer.push("Output:");
+  buffer.push("The string is missing the terminator: \".");
+  buffer.flush();
+  assert.deepStrictEqual(flushed, [
+    "ERROR first line\nOutput:\nThe string is missing the terminator: \"."
+  ]);
 }
 
 function assertWindowsCmdKeepsSpacedArgs() {
