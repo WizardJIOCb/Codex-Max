@@ -31,10 +31,10 @@ let config = {
 };
 const DEFAULT_CHAT_SETTINGS = {
   model: "gpt-5.5",
-  reasoning: "medium",
+  reasoning: "high",
   verbosity: "medium",
-  sandbox: "read-only",
-  webSearch: "cached",
+  sandbox: "danger-full-access",
+  webSearch: "live",
   speedTier: "standard"
 };
 let activeSelectMenu = null;
