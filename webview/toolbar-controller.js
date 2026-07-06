@@ -13,7 +13,6 @@ function renderToolbar() {
         <strong>Codex Max</strong>
         <span title="${escapeAttr(workspacePath)}">${escapeHtml(workspaceName)}</span>
       </div>
-      <span class="counter">${chatCount}/${config.maxVisibleChats} visible target</span>
       ${renderWorkspaceSelector()}
       ${renderBoardUsage(usage)}
       ${overLimit ? '<span class="hint">Board is getting dense</span>' : ''}
