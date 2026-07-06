@@ -320,7 +320,7 @@ function renderMessage(item, chat, index) {
         <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle details">
           ${eventBadgeHtml(item.kind, item.status)}
           <span class="eventTitle">${escapeHtml(title)}</span>
-          ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : ''}
+          ${renderEventPreview(item, preview)}
           <button class="eventToggle" type="button" tabindex="-1" title="Expand details" aria-label="Expand details">
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path class="eventToggleVertical" d="M8 3.5v9"></path>
@@ -416,6 +416,42 @@ function renderCommandGroupItem(item, chat, index) {
       </div>
     </div>
   `;
+}
+
+function renderEventPreview(item, preview) {
+  if (!preview) {
+    return "";
+  }
+
+  const html = item && item.kind === "files"
+    ? renderSignedCountsPreview(preview)
+    : escapeHtml(preview);
+  return '<span class="eventPreview">' + html + '</span>';
+}
+
+function renderSignedCountsPreview(value) {
+  const text = String(value || "");
+  const pattern = /([+-]\d+)/g;
+  let output = "";
+  let lastIndex = 0;
+  let matched = false;
+  let match = pattern.exec(text);
+
+  while (match) {
+    matched = true;
+    output += escapeHtml(text.slice(lastIndex, match.index));
+    const token = match[1];
+    const className = token.startsWith("+") ? "changeAdd" : "changeDelete";
+    output += '<span class="' + className + '">' + escapeHtml(token) + '</span>';
+    lastIndex = match.index + token.length;
+    match = pattern.exec(text);
+  }
+
+  if (!matched) {
+    return escapeHtml(text);
+  }
+
+  return output + escapeHtml(text.slice(lastIndex));
 }
 
 function latestUserMessageIndex(chat) {
