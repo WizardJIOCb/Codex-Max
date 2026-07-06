@@ -559,6 +559,19 @@ function bindChatChromeControls(chat, card) {
   if (voiceButton) {
     voiceButton.addEventListener("click", () => toggleVoiceInput(chat.id));
   }
+  const speedTierButton = card.querySelector("[data-action='speed-tier']");
+  if (speedTierButton) {
+    speedTierButton.addEventListener("click", () => {
+      const promptInput = card.querySelector(".promptInput");
+      updateChat(chat.id, (current) => {
+        current.draftPrompt = promptInput ? promptInput.value : current.draftPrompt;
+        current.settings = normalizeSettings(current.settings);
+        current.settings.speedTier = current.settings.speedTier === "fast" ? "standard" : "fast";
+        current.updatedAt = Date.now();
+      }, { render: "chrome" });
+      persist({ skipFullSync: true });
+    });
+  }
   const cancelEditButton = card.querySelector("[data-action='cancel-edit']");
   if (cancelEditButton) {
     cancelEditButton.addEventListener("click", () => cancelEditUserMessage(chat.id));

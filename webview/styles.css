@@ -1760,6 +1760,23 @@ textarea:focus {
   color: var(--fg);
 }
 
+.composerIcon.speedTier {
+  color: color-mix(in srgb, var(--muted), var(--fg) 8%);
+  border-color: color-mix(in srgb, var(--border), transparent 35%);
+  background: color-mix(in srgb, var(--input), transparent 55%);
+}
+
+.composerIcon.speedTier.active {
+  color: var(--chipText);
+  border-color: rgba(255, 214, 10, 0.58);
+  background: radial-gradient(circle at 50% 42%, rgba(255, 214, 10, 0.22), rgba(255, 214, 10, 0.07) 60%, transparent 74%);
+  box-shadow: 0 0 0 1px rgba(255, 214, 10, 0.08), 0 0 13px rgba(255, 214, 10, 0.16);
+}
+
+.composerIcon.speedTier.active svg {
+  fill: color-mix(in srgb, var(--chipText), transparent 62%);
+}
+
 .composerIcon.listening {
   color: var(--chipText);
   border-color: rgba(255, 214, 10, 0.55);

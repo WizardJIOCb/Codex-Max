@@ -110,6 +110,11 @@ function renderChat(chat) {
                   <path d="M8 21h8"></path>
                 </svg>
               </button>
+              <button class="composerIcon speedTier${settings.speedTier === "fast" ? " active" : ""}" type="button" data-action="speed-tier" title="${settings.speedTier === "fast" ? "Speed: Fast (1.5x speed, increased usage)" : "Speed: Standard"}" aria-label="Toggle speed" aria-pressed="${settings.speedTier === "fast" ? "true" : "false"}" ${isRunning ? "disabled" : ""}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"></path>
+                </svg>
+              </button>
               <div class="composerSettings" aria-label="Codex prompt settings">
                 ${selectChip("sandbox", "Filesystem access", settings.sandbox, [
                   ["read-only", "Read access"],
@@ -132,10 +137,6 @@ function renderChat(chat) {
                   ["disabled", "Web off"],
                   ["cached", "Web"],
                   ["live", "Live web"]
-                ], isRunning)}
-                ${selectChip("speedTier", "Speed", settings.speedTier, [
-                  ["standard", "Standard"],
-                  ["fast", "Fast"]
                 ], isRunning)}
               </div>
             </div>
