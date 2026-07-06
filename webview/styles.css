@@ -789,13 +789,55 @@ select {
   margin: 0 0 8px;
   padding: 8px;
   border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border-radius: 5px;
   overflow: auto;
   background: #1f1f1f;
   font-family: var(--vscode-editor-font-family);
   font-size: var(--vscode-editor-font-size);
   line-height: 1.35;
   white-space: pre;
+}
+
+.message pre.codeBlock.hasCodeLang {
+  position: relative;
+  padding-top: 22px;
+}
+
+.codeLang {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.shKeyword {
+  color: #ff9d6e;
+  font-weight: 600;
+}
+
+.shString {
+  color: #ffd166;
+}
+
+.shNumber,
+.shLiteral {
+  color: #79c0ff;
+}
+
+.shComment {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.shProperty {
+  color: #7ee787;
+}
+
+.shTag {
+  color: #7aa2f7;
 }
 
 .message pre code {
@@ -952,6 +994,7 @@ select {
   align-self: stretch;
   padding: 0;
   border-color: #3a3a3a;
+  border-radius: 5px;
   background: #252525;
   color: var(--muted);
   font-size: 12px;
@@ -962,7 +1005,7 @@ select {
   align-self: stretch;
   padding: 0;
   border: 1px solid #3c3c3c;
-  border-radius: 10px;
+  border-radius: 5px;
   background: #2b2b2b;
   overflow: hidden;
 }

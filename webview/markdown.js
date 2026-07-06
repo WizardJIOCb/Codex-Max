@@ -18,7 +18,7 @@ function renderMarkdown(value) {
 
     const lang = String(match[1] || "").trim();
     const code = match[2] || "";
-    parts.push('<pre><code' + (lang ? ' data-lang="' + escapeAttr(lang) + '"' : '') + '>' + escapeHtml(code.trim()) + '</code></pre>');
+    parts.push(renderCodeBlock(code.trim(), lang));
     lastIndex = fence.lastIndex;
   }
 
@@ -46,7 +46,7 @@ function renderMarkdownText(value) {
     }
 
     if (lines.every((line) => /^    /.test(line))) {
-      return '<pre><code>' + escapeHtml(lines.map((line) => line.replace(/^    /, "")).join("\n")) + '</code></pre>';
+      return renderCodeBlock(lines.map((line) => line.replace(/^    /, "")).join("\n"), "");
     }
 
     if (lines[0].trim() === "\\[" && lines[lines.length - 1].trim() === "\\]") {
@@ -80,6 +80,93 @@ function renderMarkdownText(value) {
 
     return renderMixedMarkdownLines(lines);
   }).join("");
+}
+
+function renderCodeBlock(code, lang) {
+  const normalized = normalizeCodeLanguage(lang);
+  const langAttr = lang ? ' data-lang="' + escapeAttr(lang) + '"' : "";
+  const langClass = normalized ? " hasCodeLang language-" + escapeAttr(normalized) : "";
+  const label = normalized ? '<span class="codeLang">' + escapeHtml(normalized) + '</span>' : "";
+  return '<pre class="codeBlock' + langClass + '">' + label + '<code' + langAttr + '>' + syntaxHighlightCode(code, normalized) + '</code></pre>';
+}
+
+function normalizeCodeLanguage(lang) {
+  const value = String(lang || "").trim().toLowerCase().split(/\s+/)[0];
+  const aliases = {
+    js: "javascript",
+    jsx: "javascript",
+    mjs: "javascript",
+    cjs: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    py: "python",
+    ps1: "powershell",
+    pwsh: "powershell",
+    sh: "bash",
+    shell: "bash",
+    zsh: "bash",
+    yml: "yaml",
+    htm: "html"
+  };
+  return aliases[value] || value;
+}
+
+function syntaxHighlightCode(code, lang) {
+  const sourceLang = normalizeCodeLanguage(lang);
+  let source = String(code || "");
+  if (!source.trim()) {
+    return "";
+  }
+
+  const tokens = [];
+  const protect = (pattern, className) => {
+    source = source.replace(pattern, (match) => {
+      const id = tokens.length;
+      tokens.push('<span class="' + className + '">' + escapeHtml(match) + '</span>');
+      return "\uE000" + id + "\uE001";
+    });
+  };
+
+  if (sourceLang === "html" || sourceLang === "xml") {
+    protect(/<!--[\s\S]*?-->/g, "shComment");
+    protect(/<\/?[A-Za-z][^>\n]*?>/g, "shTag");
+  } else if (sourceLang === "css") {
+    protect(/\/\*[\s\S]*?\*\//g, "shComment");
+    protect(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "shString");
+    protect(/\b(?:#[0-9a-fA-F]{3,8}|-?\d+(?:\.\d+)?(?:px|rem|em|vh|vw|%|s|ms)?)\b/g, "shNumber");
+    protect(/\b(?:display|position|grid|flex|block|none|color|background|border|padding|margin|width|height|font|transform|transition|animation|content|overflow|z-index|opacity)\b/g, "shKeyword");
+  } else {
+    if (sourceLang === "python" || sourceLang === "bash" || sourceLang === "powershell" || sourceLang === "yaml") {
+      protect(/#[^\n]*/g, "shComment");
+    } else if (sourceLang !== "json") {
+      protect(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "shComment");
+    }
+    if (sourceLang === "json" || sourceLang === "yaml") {
+      protect(/"(?:\\.|[^"\\])*"(?=\s*:)/g, "shProperty");
+    }
+    protect(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g, "shString");
+    protect(/\b(?:true|false|null|undefined|NaN|Infinity)\b/g, "shLiteral");
+    protect(/\b-?\d+(?:\.\d+)?\b/g, "shNumber");
+    protect(keywordPatternForLanguage(sourceLang), "shKeyword");
+  }
+
+  let html = escapeHtml(source);
+  html = html.replace(/\uE000(\d+)\uE001/g, (match, id) => tokens[Number(id)] || match);
+  return html;
+}
+
+function keywordPatternForLanguage(lang) {
+  const sets = {
+    javascript: "async|await|break|case|catch|class|const|continue|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|static|switch|throw|try|typeof|var|void|while|yield",
+    typescript: "abstract|any|as|async|await|boolean|break|case|catch|class|const|continue|default|delete|do|else|enum|export|extends|finally|for|from|function|if|implements|import|in|instanceof|interface|let|namespace|new|of|private|protected|public|readonly|return|static|string|switch|throw|try|type|typeof|var|void|while|yield",
+    python: "and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield",
+    powershell: "begin|break|catch|class|continue|data|do|dynamicparam|else|elseif|end|exit|filter|finally|for|foreach|from|function|if|in|param|process|return|switch|throw|trap|try|until|using|var|while",
+    bash: "case|do|done|elif|else|esac|export|fi|for|function|if|in|local|return|select|then|until|while",
+    json: "",
+    yaml: "true|false|null"
+  };
+  const words = sets[lang] || sets.javascript;
+  return words ? new RegExp("\\b(?:" + words + ")\\b", "g") : /$a/;
 }
 
 function renderMixedMarkdownLines(lines) {
