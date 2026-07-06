@@ -295,9 +295,13 @@ function prepareTypewriterMessage(node) {
     return null;
   }
 
+  const caret = document.createElement("span");
+  caret.className = "typingCaret";
+  caret.setAttribute("aria-hidden", "true");
   node.classList.add("typingMessage");
   return {
     node,
+    caret,
     segments,
     total
   };
@@ -333,7 +337,7 @@ function startTypewriterMessage(animation, chatId, messages) {
     const eased = 1 - Math.pow(1 - progress, 2.1);
     const visibleCount = Math.min(animation.total, Math.max(1, Math.floor(animation.total * eased)));
     if (visibleCount !== previousCount) {
-      revealTypewriterCharacters(animation.segments, visibleCount);
+      revealTypewriterCharacters(animation.segments, visibleCount, animation);
       previousCount = visibleCount;
       keepTypingMessageInView(chatId, messages);
     }
@@ -343,7 +347,8 @@ function startTypewriterMessage(animation, chatId, messages) {
       return;
     }
 
-    revealTypewriterCharacters(animation.segments, animation.total);
+    revealTypewriterCharacters(animation.segments, animation.total, animation);
+    removeTypewriterCaret(animation);
     cleanupTypewriterSegments(animation.segments);
     animation.node.classList.remove("typingMessage");
     keepTypingMessageInView(chatId, messages);
@@ -352,8 +357,9 @@ function startTypewriterMessage(animation, chatId, messages) {
   requestAnimationFrame(renderFrame);
 }
 
-function revealTypewriterCharacters(segments, visibleCount) {
+function revealTypewriterCharacters(segments, visibleCount, animation) {
   let remaining = visibleCount;
+  let lastVisibleNode = null;
   for (const segment of segments) {
     let shown = 0;
     if (remaining <= 0) {
@@ -369,7 +375,27 @@ function revealTypewriterCharacters(segments, visibleCount) {
     if (shown > 0 && segment.container) {
       segment.container.classList.remove("typingSegmentHidden");
     }
+    if (shown > 0) {
+      lastVisibleNode = segment.node;
+    }
     remaining -= segment.length;
+  }
+
+  if (animation && lastVisibleNode) {
+    moveTypewriterCaret(animation, lastVisibleNode);
+  }
+}
+
+function moveTypewriterCaret(animation, textNode) {
+  if (!animation || !animation.caret || !textNode || !textNode.parentNode) {
+    return;
+  }
+  textNode.parentNode.insertBefore(animation.caret, textNode.nextSibling);
+}
+
+function removeTypewriterCaret(animation) {
+  if (animation && animation.caret && animation.caret.parentNode) {
+    animation.caret.remove();
   }
 }
 

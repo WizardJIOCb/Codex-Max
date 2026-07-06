@@ -361,8 +361,7 @@ select {
   animation: messageEnter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.message.assistant.typingMessage::after {
-  content: "";
+.typingCaret {
   display: inline-block;
   width: 6px;
   height: 1.15em;
@@ -407,7 +406,7 @@ select {
     animation: none;
   }
 
-  .message.assistant.typingMessage::after {
+  .typingCaret {
     display: none;
   }
 }
