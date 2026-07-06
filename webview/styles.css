@@ -1179,6 +1179,31 @@ select {
   letter-spacing: 0;
 }
 
+.eventBadge.commandIconBadge {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 5px;
+  color: var(--vscode-testing-iconPassed);
+  border-color: color-mix(in srgb, var(--vscode-testing-iconPassed), transparent 22%);
+}
+
+.eventBadge.commandIconBadge.error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger), transparent 18%);
+}
+
+.eventBadge.commandIconBadge svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .eventTitle {
   min-width: 0;
   color: var(--fg);
@@ -1345,6 +1370,11 @@ select {
 
 .message.event.commandGroupItem .eventBadge {
   min-width: 38px;
+}
+
+.message.event.commandGroupItem .eventBadge.commandIconBadge {
+  width: 20px;
+  min-width: 20px;
 }
 
 .message.event.commandGroupItem .eventDetail pre {

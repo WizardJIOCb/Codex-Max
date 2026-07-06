@@ -318,7 +318,7 @@ function renderMessage(item, chat, index) {
     return `
       <div class="message event ${escapeAttr(item.kind || "event")} ${escapeAttr(item.status || "info")}"${messageId}${keyAttrs}>
         <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle details">
-          <span class="eventBadge">${escapeHtml(eventBadge(item.kind, item.status))}</span>
+          ${eventBadgeHtml(item.kind, item.status)}
           <span class="eventTitle">${escapeHtml(title)}</span>
           ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : ''}
           <button class="eventToggle" type="button" tabindex="-1" title="Expand details" aria-label="Expand details">
@@ -371,11 +371,12 @@ function renderCommandGroup(group, chat, index) {
   const count = commands.length;
   const label = "Ran " + count + " " + (count === 1 ? "command" : "commands");
   const errorCount = commands.filter((entry) => entry.item.status === "error").length;
+  const groupStatus = errorCount ? "error" : "done";
   const preview = errorCount ? errorCount + " failed" : "";
   return `
-    <div class="message event commandGroup done"${keyAttrs}>
+    <div class="message event commandGroup ${escapeAttr(groupStatus)}"${keyAttrs}>
       <div class="eventSummary commandGroupSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle commands">
-        <span class="eventBadge">CMD</span>
+        ${eventBadgeHtml("command", groupStatus)}
         <span class="eventTitle">${escapeHtml(label)}</span>
         ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : '<span class="eventPreview"></span>'}
         <button class="eventToggle" type="button" tabindex="-1" title="Expand commands" aria-label="Expand commands">
@@ -400,7 +401,7 @@ function renderCommandGroupItem(item, chat, index) {
   return `
     <div class="message event command commandGroupItem ${escapeAttr(item.status || "done")}"${messageId}${messageIdentityAttrs(item, chat, index)}>
       <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle command output">
-        <span class="eventBadge">${escapeHtml(eventBadge(item.kind, item.status))}</span>
+        ${eventBadgeHtml(item.kind, item.status)}
         <span class="eventTitle">${escapeHtml(item.title || item.text || "Command")}</span>
         ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : ''}
         <button class="eventToggle" type="button" tabindex="-1" title="Expand command output" aria-label="Expand command output">
@@ -575,4 +576,22 @@ function eventBadge(kind, status) {
     return "THINK";
   }
   return "INFO";
+}
+
+function eventBadgeHtml(kind, status) {
+  if (kind === "command") {
+    const commandStatus = status === "error" ? "error" : "done";
+    const title = commandStatus === "error" ? "Command failed" : "Command";
+    return `
+      <span class="eventBadge commandIconBadge ${escapeAttr(commandStatus)}" title="${escapeAttr(title)}">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="2.5" y="3.5" width="11" height="9" rx="1.5"></rect>
+          <path d="m5.25 6.25 2 1.75-2 1.75"></path>
+          <path d="M8.5 10.25h2.25"></path>
+        </svg>
+      </span>
+    `;
+  }
+
+  return '<span class="eventBadge">' + escapeHtml(eventBadge(kind, status)) + '</span>';
 }
