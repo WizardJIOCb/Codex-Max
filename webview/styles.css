@@ -859,19 +859,42 @@ select {
 
 .thinkingLine {
   align-self: stretch;
+  display: flex;
+  align-items: center;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
 }
 
-.thinkingLine span::after {
-  content: "...";
+.thinkingLine span {
+  position: relative;
   display: inline-block;
-  width: 0;
-  margin-left: 2px;
+  max-width: max-content;
   overflow: hidden;
-  vertical-align: bottom;
-  animation: statusDots 1.2s steps(4, end) infinite;
+  color: color-mix(in srgb, var(--messageText), transparent 26%);
+}
+
+.thinkingLine span::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 0%, transparent 24%, rgba(255, 255, 255, 0.72) 48%, transparent 72%, transparent 100%);
+  transform: translateX(-120%);
+  mix-blend-mode: screen;
+  animation: thinkingShimmer 1.45s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.thinkingLine span::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  vertical-align: -0.16em;
+  animation: typingCaretPulse 820ms ease-in-out infinite;
 }
 
 .message.system,
@@ -1155,6 +1178,23 @@ select {
   }
   100% {
     width: 1.4em;
+  }
+}
+
+@keyframes thinkingShimmer {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.75;
+  }
+  62% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
   }
 }
 

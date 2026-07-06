@@ -205,7 +205,7 @@ function createDurationRenderEntry(startedAt, finishedAt) {
 function renderThinkingLine() {
   return `
     <div class="thinkingLine" data-message-key="thinking" data-render-signature="thinking">
-      <span>Thinking</span>
+      <span>Thinking...</span>
     </div>
   `;
 }
