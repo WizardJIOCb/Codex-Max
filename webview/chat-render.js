@@ -197,11 +197,12 @@ function renderChatMessageEntries(chat) {
     entries.push(createDurationRenderEntry(start, 0));
   }
 
-  if (chat.status === "running" && chat.isThinking) {
+  const activity = runningActivityInfo(chat);
+  if (activity) {
     entries.push({
-      key: "thinking",
-      signature: "thinking",
-      html: renderThinkingLine()
+      key: "activity:" + activity.kind,
+      signature: ["activity", activity.kind, activity.text].join(":"),
+      html: renderActivityLine(activity)
     });
   }
 
@@ -234,12 +235,51 @@ function createDurationRenderEntry(startedAt, finishedAt) {
   };
 }
 
-function renderThinkingLine() {
+function renderActivityLine(activity) {
+  const kind = activity && activity.kind === "editing" ? "editing" : "thinking";
+  const text = activity && activity.text ? activity.text : "Thinking...";
   return `
-    <div class="thinkingLine" data-message-key="thinking" data-render-signature="thinking">
-      <span>Thinking...</span>
+    <div class="thinkingLine ${escapeAttr(kind)}Line" data-message-key="activity:${escapeAttr(kind)}" data-render-signature="${escapeAttr(["activity", kind, text].join(":"))}">
+      <span>${renderSignedCountsPreview(text)}</span>
     </div>
   `;
+}
+
+function runningActivityInfo(chat) {
+  if (!chat || chat.status !== "running") {
+    return null;
+  }
+
+  const editing = latestRunningFileEvent(chat);
+  if (editing) {
+    return {
+      kind: "editing",
+      text: editingActivityText(editing)
+    };
+  }
+
+  return {
+    kind: "thinking",
+    text: "Thinking..."
+  };
+}
+
+function latestRunningFileEvent(chat) {
+  const messages = Array.isArray(chat && chat.messages) ? chat.messages : [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message && message.role === "event" && message.kind === "files" && message.status === "running") {
+      return message;
+    }
+  }
+  return null;
+}
+
+function editingActivityText(item) {
+  const title = String(item && (item.title || item.text) || "Editing");
+  const detail = compactPreview(String(item && item.detail || ""));
+  const counts = detail.match(/[+-]\d+(?:\s+[+-]\d+)?/);
+  return counts ? title + " " + counts[0] : title;
 }
 
 function turnDurationInsertIndex(messages, startedAt) {
