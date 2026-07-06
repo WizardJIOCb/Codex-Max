@@ -50,22 +50,32 @@ function renderWorkspaceSelector() {
 }
 
 function renderBoardUsage(info) {
+  const loadingTitle = accountRateLimitsLoading ? "Refreshing account limits..." : info.tooltip + "\nClick to refresh";
+  const loadingLabel = accountRateLimitsLoading ? "Refreshing account limits" : info.tooltip + "\nRefresh account limits";
+  const loadingValue = '<strong class="usageValueLoader" aria-hidden="true"></strong>';
+  const fiveHourValue = accountRateLimitsLoading ? loadingValue : '<strong>' + escapeHtml(info.fiveHourLabel) + '</strong>';
+  const weeklyValue = accountRateLimitsLoading ? loadingValue : '<strong>' + escapeHtml(info.weeklyLabel) + '</strong>';
+  const resetsValue = accountRateLimitsLoading ? loadingValue : '<strong>' + escapeHtml(info.limitResetLabel) + '</strong>';
+
   if (accountRateLimitsLoading) {
     return `
-      <button class="boardUsage loading ${escapeAttr(info.statusClass)}" type="button" title="Refreshing account limits..." aria-label="Refreshing account limits">
+      <button class="boardUsage loading ${escapeAttr(info.statusClass)}" type="button" title="${escapeAttr(loadingTitle)}" aria-label="${escapeAttr(loadingLabel)}">
         <span class="usageDot" aria-hidden="true"></span>
-        <span>Refreshing limits...</span>
+        <span>5h ${fiveHourValue}</span>
+        <span>Week ${weeklyValue}</span>
+        <span>Status <strong>${escapeHtml(info.statusDisplayLabel)}</strong></span>
+        <span>Resets ${resetsValue}</span>
       </button>
     `;
   }
 
   return `
-    <button class="boardUsage ${escapeAttr(info.statusClass)}" type="button" title="${escapeAttr(info.tooltip + "\nClick to refresh")}" aria-label="${escapeAttr(info.tooltip + "\nRefresh account limits")}">
+    <button class="boardUsage ${escapeAttr(info.statusClass)}" type="button" title="${escapeAttr(loadingTitle)}" aria-label="${escapeAttr(loadingLabel)}">
       <span class="usageDot" aria-hidden="true"></span>
-      <span>5h <strong>${escapeHtml(info.fiveHourLabel)}</strong></span>
-      <span>Week <strong>${escapeHtml(info.weeklyLabel)}</strong></span>
+      <span>5h ${fiveHourValue}</span>
+      <span>Week ${weeklyValue}</span>
       <span>Status <strong>${escapeHtml(info.statusDisplayLabel)}</strong></span>
-      <span>Resets <strong>${escapeHtml(info.limitResetLabel)}</strong></span>
+      <span>Resets ${resetsValue}</span>
     </button>
   `;
 }

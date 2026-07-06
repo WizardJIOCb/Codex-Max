@@ -149,6 +149,20 @@ select {
   font-weight: 600;
 }
 
+.usageValueLoader {
+  display: inline-block;
+  width: 24px;
+  height: 10px;
+  vertical-align: -1px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle closest-side, currentColor 92%, transparent) 0 50% / 6px 6px no-repeat,
+    radial-gradient(circle closest-side, currentColor 92%, transparent) 9px 50% / 6px 6px no-repeat,
+    radial-gradient(circle closest-side, currentColor 92%, transparent) 18px 50% / 6px 6px no-repeat;
+  color: color-mix(in srgb, var(--fg), transparent 38%);
+  animation: usageValuePulse 1s ease-in-out infinite;
+}
+
 .usageDot {
   width: 7px;
   height: 7px;
@@ -188,6 +202,16 @@ select {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes usageValuePulse {
+  0%,
+  100% {
+    opacity: 0.38;
+  }
+  50% {
+    opacity: 0.9;
   }
 }
 
