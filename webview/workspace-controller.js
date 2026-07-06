@@ -18,6 +18,24 @@ function workspaceList() {
   return state.workspaces;
 }
 
+function workspaceChatCount(workspace) {
+  if (workspace && workspace.id === state.activeWorkspaceId) {
+    return Array.isArray(state.chats) ? state.chats.length : 0;
+  }
+  return Array.isArray(workspace && workspace.chats) ? workspace.chats.length : 0;
+}
+
+function workspaceDisplayName(workspace) {
+  const name = String(workspace && workspace.name || "Workspace").trim() || "Workspace";
+  return name + " [" + workspaceChatCount(workspace) + "]";
+}
+
+function workspaceTitle(workspace) {
+  const path = String(workspace && workspace.path || "").trim();
+  const label = workspaceDisplayName(workspace);
+  return path ? label + " - " + path : label;
+}
+
 function createWorkspaceProfileAndSwitch(selectedPath) {
   syncActiveWorkspaceFromState();
   const workspacePath = normalizeProjectPath(selectedPath || config.workspacePath || "");

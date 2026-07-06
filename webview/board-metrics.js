@@ -44,8 +44,8 @@ function renderContextIndicator(info) {
 
 function renderWorkspaceSelector() {
   const workspace = activeWorkspaceProfile();
-  const label = workspace ? workspace.name : "Workspace";
-  const pathLabel = workspace && workspace.path ? workspace.path : "Codex Max workspace";
+  const label = workspace ? workspaceDisplayName(workspace) : "Workspace [0]";
+  const pathLabel = workspace ? workspaceTitle(workspace) : "Codex Max workspace";
   return '<button id="workspaceSelector" class="workspaceSelector" type="button" title="' + escapeAttr(pathLabel) + '" aria-haspopup="listbox" aria-expanded="false"><span>' + escapeHtml(label) + '</span></button>';
 }
 

@@ -124,8 +124,8 @@ function openWorkspaceMenu(button) {
   for (const workspace of workspaceList()) {
     const item = document.createElement("button");
     item.type = "button";
-    item.textContent = workspace.name;
-    item.title = workspace.path || workspace.name;
+    item.textContent = workspaceDisplayName(workspace);
+    item.title = workspaceTitle(workspace);
     item.dataset.workspaceId = workspace.id;
     item.setAttribute("role", "option");
     item.setAttribute("aria-selected", workspace.id === state.activeWorkspaceId ? "true" : "false");
