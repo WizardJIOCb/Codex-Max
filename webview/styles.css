@@ -1263,7 +1263,7 @@ select {
   cursor: pointer;
 }
 
-.message.event.expanded .eventToggle {
+.message.event.expanded > .eventSummary .eventToggle {
   color: var(--fg);
 }
 
@@ -1281,7 +1281,7 @@ select {
   transition: opacity 120ms ease;
 }
 
-.message.event.expanded .eventToggle .eventToggleVertical {
+.message.event.expanded > .eventSummary .eventToggle .eventToggleVertical {
   opacity: 0;
 }
 
@@ -1305,7 +1305,7 @@ select {
   border-top: 1px solid var(--border);
 }
 
-.message.event.expanded .eventDetail {
+.message.event.expanded > .eventDetail {
   display: block;
 }
 
@@ -1322,6 +1322,33 @@ select {
   font-size: var(--vscode-editor-font-size);
   line-height: 1.35;
   white-space: pre-wrap;
+}
+
+.commandGroupDetail {
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg), black 6%);
+}
+
+.message.event.commandGroupItem {
+  margin: 0 0 6px;
+  border-color: #373737;
+  background: #232323;
+}
+
+.message.event.commandGroupItem:last-child {
+  margin-bottom: 0;
+}
+
+.message.event.commandGroupItem .eventSummary {
+  min-height: 26px;
+}
+
+.message.event.commandGroupItem .eventBadge {
+  min-width: 38px;
+}
+
+.message.event.commandGroupItem .eventDetail pre {
+  max-height: 220px;
 }
 
 .message.event .eventDetail pre.changeDiff {

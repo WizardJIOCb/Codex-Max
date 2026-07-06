@@ -221,6 +221,7 @@ function createMessageNodeFromEntry(entry, expandedKeys, animate, animationQueue
   if (entry.key && expandedKeys.has(entry.key)) {
     restoreExpandedMessage(nextNode);
   }
+  restoreExpandedDescendants(nextNode, expandedKeys);
   if (shouldAnimateMessageEntry(entry, animate)) {
     rememberAnimatedMessageKey(entry.key);
     nextNode.classList.add("newMessage");
@@ -231,6 +232,19 @@ function createMessageNodeFromEntry(entry, expandedKeys, animate, animationQueue
   }
   bindMessageContentControls(nextNode);
   return nextNode;
+}
+
+function restoreExpandedDescendants(root, expandedKeys) {
+  if (!root || !expandedKeys || !expandedKeys.size) {
+    return;
+  }
+
+  for (const item of root.querySelectorAll(".message[data-message-key]")) {
+    if (item === root || !expandedKeys.has(item.dataset.messageKey)) {
+      continue;
+    }
+    restoreExpandedMessage(item);
+  }
 }
 
 function shouldAnimateMessageEntry(entry, animate) {
@@ -436,7 +450,7 @@ function captureExpandedMessageKeys(messages) {
     return keys;
   }
 
-  for (const item of Array.from(messages.children)) {
+  for (const item of messages.querySelectorAll(".message.expanded[data-message-key]")) {
     if (item.classList && item.classList.contains("message") && item.classList.contains("expanded") && item.dataset && item.dataset.messageKey) {
       keys.add(item.dataset.messageKey);
     }

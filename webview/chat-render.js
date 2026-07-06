@@ -168,7 +168,26 @@ function renderChatMessageEntries(chat) {
   const entries = [];
 
   for (let index = 0; index < items.length; index += 1) {
-    entries.push(createMessageRenderEntry(items[index], chat, index));
+    if (isGroupableCommandEvent(items[index])) {
+      const startIndex = index;
+      const group = [];
+      while (index < items.length && isGroupableCommandEvent(items[index])) {
+        group.push({
+          item: items[index],
+          index
+        });
+        index += 1;
+      }
+      index -= 1;
+
+      if (group.length > 1) {
+        entries.push(createCommandGroupRenderEntry(group, chat, startIndex));
+      } else {
+        entries.push(createMessageRenderEntry(group[0].item, chat, group[0].index));
+      }
+    } else {
+      entries.push(createMessageRenderEntry(items[index], chat, index));
+    }
     if (index === insertAfter) {
       entries.push(createDurationRenderEntry(start, end));
     }
@@ -194,6 +213,14 @@ function createMessageRenderEntry(item, chat, index) {
     key: messageRenderKey(item, chat, index),
     signature: messageRenderSignature(item),
     html: renderMessage(item, chat, index)
+  };
+}
+
+function createCommandGroupRenderEntry(group, chat, index) {
+  return {
+    key: commandGroupRenderKey(group, chat, index),
+    signature: commandGroupRenderSignature(group),
+    html: renderCommandGroup(group, chat, index)
   };
 }
 
@@ -338,6 +365,58 @@ function renderMessage(item, chat, index) {
   return `<div class="message ${escapeAttr(item.role)}"${keyAttrs}>${html}</div>`;
 }
 
+function renderCommandGroup(group, chat, index) {
+  const commands = Array.isArray(group) ? group.filter((entry) => entry && entry.item) : [];
+  const keyAttrs = commandGroupIdentityAttrs(commands, chat, index);
+  const count = commands.length;
+  const label = "Ran " + count + " " + (count === 1 ? "command" : "commands");
+  const errorCount = commands.filter((entry) => entry.item.status === "error").length;
+  const preview = errorCount ? errorCount + " failed" : "";
+  return `
+    <div class="message event commandGroup done"${keyAttrs}>
+      <div class="eventSummary commandGroupSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle commands">
+        <span class="eventBadge">CMD</span>
+        <span class="eventTitle">${escapeHtml(label)}</span>
+        ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : '<span class="eventPreview"></span>'}
+        <button class="eventToggle" type="button" tabindex="-1" title="Expand commands" aria-label="Expand commands">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path class="eventToggleVertical" d="M8 3.5v9"></path>
+            <path d="M3.5 8h9"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="eventDetail commandGroupDetail">
+        ${commands.map((entry) => renderCommandGroupItem(entry.item, chat, entry.index)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderCommandGroupItem(item, chat, index) {
+  const detail = item.detail || item.text || "";
+  const preview = compactPreview(detail);
+  const messageId = item.eventId ? ' data-message-id="' + escapeAttr(item.eventId) + '"' : "";
+  const eventDetail = detail ? '<pre>' + escapeHtml(detail) + '</pre>' : '<div class="eventEmpty">No additional details</div>';
+  return `
+    <div class="message event command commandGroupItem ${escapeAttr(item.status || "done")}"${messageId}${messageIdentityAttrs(item, chat, index)}>
+      <div class="eventSummary" role="button" tabindex="0" aria-expanded="false" title="Toggle command output">
+        <span class="eventBadge">${escapeHtml(eventBadge(item.kind, item.status))}</span>
+        <span class="eventTitle">${escapeHtml(item.title || item.text || "Command")}</span>
+        ${preview ? '<span class="eventPreview">' + escapeHtml(preview) + '</span>' : ''}
+        <button class="eventToggle" type="button" tabindex="-1" title="Expand command output" aria-label="Expand command output">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path class="eventToggleVertical" d="M8 3.5v9"></path>
+            <path d="M3.5 8h9"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="eventDetail">
+        ${eventDetail}
+      </div>
+    </div>
+  `;
+}
+
 function latestUserMessageIndex(chat) {
   const messages = Array.isArray(chat && chat.messages) ? chat.messages : [];
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -370,6 +449,10 @@ function renderTurnDuration(startedAt, finishedAt) {
 
 function messageIdentityAttrs(item, chat, index) {
   return ' data-message-key="' + escapeAttr(messageRenderKey(item, chat, index)) + '" data-render-signature="' + escapeAttr(messageRenderSignature(item)) + '"';
+}
+
+function commandGroupIdentityAttrs(group, chat, index) {
+  return ' data-message-key="' + escapeAttr(commandGroupRenderKey(group, chat, index)) + '" data-render-signature="' + escapeAttr(commandGroupRenderSignature(group)) + '"';
 }
 
 function messageRenderKey(item, chat, index) {
@@ -410,6 +493,34 @@ function messageRenderSignature(item) {
     Number(item.runStartedAt || 0),
     Number(item.runFinishedAt || 0),
     changes
+  ].join("|");
+}
+
+function isGroupableCommandEvent(item) {
+  if (!item || item.role !== "event" || item.kind !== "command") {
+    return false;
+  }
+  return item.status !== "running";
+}
+
+function commandGroupRenderKey(group, chat, index) {
+  const first = Array.isArray(group) && group.length ? group[0].item || group[0] : null;
+  const last = Array.isArray(group) && group.length ? group[group.length - 1].item || group[group.length - 1] : null;
+  return [
+    "command-group",
+    chat && chat.id || "",
+    index,
+    first && (first.eventId || first.at) || "",
+    last && (last.eventId || last.at) || ""
+  ].join(":");
+}
+
+function commandGroupRenderSignature(group) {
+  const commands = Array.isArray(group) ? group : [];
+  return [
+    "command-group",
+    commands.length,
+    commands.map((entry) => messageRenderSignature(entry.item || entry)).join("~")
   ].join("|");
 }
 
