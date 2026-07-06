@@ -373,6 +373,10 @@ select {
   animation: typingCaretPulse 760ms ease-in-out infinite;
 }
 
+.message.assistant.typingMessage .typingSegmentHidden {
+  display: none !important;
+}
+
 @keyframes messageEnter {
   from {
     opacity: 0;

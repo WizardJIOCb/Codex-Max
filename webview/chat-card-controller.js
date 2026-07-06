@@ -276,8 +276,13 @@ function prepareTypewriterMessage(node) {
   let current = walker.nextNode();
   while (current) {
     const chars = Array.from(current.nodeValue);
+    const container = typewriterSegmentContainer(current, node);
+    if (container) {
+      container.classList.add("typingSegmentHidden");
+    }
     segments.push({
       node: current,
+      container,
       chars,
       length: chars.length
     });
@@ -339,6 +344,7 @@ function startTypewriterMessage(animation, chatId, messages) {
     }
 
     revealTypewriterCharacters(animation.segments, animation.total);
+    cleanupTypewriterSegments(animation.segments);
     animation.node.classList.remove("typingMessage");
     keepTypingMessageInView(chatId, messages);
   };
@@ -349,15 +355,43 @@ function startTypewriterMessage(animation, chatId, messages) {
 function revealTypewriterCharacters(segments, visibleCount) {
   let remaining = visibleCount;
   for (const segment of segments) {
+    let shown = 0;
     if (remaining <= 0) {
       segment.node.nodeValue = "";
     } else if (remaining >= segment.length) {
       segment.node.nodeValue = segment.chars.join("");
+      shown = segment.length;
     } else {
       segment.node.nodeValue = segment.chars.slice(0, remaining).join("");
+      shown = remaining;
+    }
+
+    if (shown > 0 && segment.container) {
+      segment.container.classList.remove("typingSegmentHidden");
     }
     remaining -= segment.length;
   }
+}
+
+function cleanupTypewriterSegments(segments) {
+  for (const segment of segments) {
+    if (segment.container) {
+      segment.container.classList.remove("typingSegmentHidden");
+    }
+  }
+}
+
+function typewriterSegmentContainer(textNode, root) {
+  const parent = textNode && textNode.parentElement;
+  if (!parent || !root) {
+    return null;
+  }
+
+  const container = parent.closest("pre, table, blockquote, li, p, h1, h2, h3, h4, h5, h6, dt, dd");
+  if (!container || container === root || !root.contains(container)) {
+    return null;
+  }
+  return container;
 }
 
 function keepTypingMessageInView(chatId, messages) {
