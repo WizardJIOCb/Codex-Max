@@ -1251,7 +1251,7 @@ select {
   align-items: center;
   gap: 7px;
   min-height: 28px;
-  padding: 5px 8px;
+  padding: 5px 8px 5px 5px;
   cursor: pointer;
   user-select: none;
 }
