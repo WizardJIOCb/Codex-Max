@@ -53,6 +53,9 @@ function renderChat(chat) {
     ? '<div class="attachmentTray">' + attachments.map(renderAttachmentChip).join("") + '</div>'
     : "";
   const contextInfo = contextUsageInfo(chat, settings.model);
+  const editingNotice = chat.editingMessageAt
+    ? '<div class="editNotice"><span>Editing last message</span><button class="editNoticeCancel" type="button" data-action="cancel-edit" title="Cancel edit" aria-label="Cancel edit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8"></path><path d="M12 4 4 12"></path></svg></button></div>'
+    : "";
   chat.settings = settings;
 
   return `
@@ -89,6 +92,7 @@ function renderChat(chat) {
       <footer class="composer">
         <div class="promptDock">
           ${attachmentTray}
+          ${editingNotice}
           <textarea class="promptInput" rows="1" placeholder="Message Codex... ${sendShortcut} to send" ${isRunning ? "disabled" : ""}>${escapeHtml(chat.draftPrompt || "")}</textarea>
           <div class="composerBar">
             <div class="composerLeft">
@@ -300,11 +304,20 @@ function renderMessage(item, chat, index) {
   }
 
   if (item.role === "user") {
+    const canEdit = index === latestUserMessageIndex(chat);
     return `
       <div class="message user"${keyAttrs}>
         ${renderPlainText(item.text)}
         <div class="userMeta">
           <span title="${escapeAttr(formatDateTime(item.at))}">${escapeHtml(formatMessageTime(item.at))}</span>
+          ${canEdit ? `
+          <button class="copyMessage editMessage" type="button" data-edit-chat="${escapeAttr(chat.id)}" data-edit-index="${escapeAttr(index)}" title="Edit message" aria-label="Edit message">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path>
+            </svg>
+          </button>
+          ` : ""}
           <button class="copyMessage" type="button" data-copy-chat="${escapeAttr(chat.id)}" data-copy-index="${escapeAttr(index)}" title="Copy message" aria-label="Copy message">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="8" y="8" width="10" height="10" rx="2"></rect>
@@ -318,6 +331,16 @@ function renderMessage(item, chat, index) {
 
   const html = item.role === "assistant" ? renderMarkdown(item.text) : renderPlainText(item.text);
   return `<div class="message ${escapeAttr(item.role)}"${keyAttrs}>${html}</div>`;
+}
+
+function latestUserMessageIndex(chat) {
+  const messages = Array.isArray(chat && chat.messages) ? chat.messages : [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index] && messages[index].role === "user") {
+      return index;
+    }
+  }
+  return -1;
 }
 
 function renderTurnDuration(startedAt, finishedAt) {

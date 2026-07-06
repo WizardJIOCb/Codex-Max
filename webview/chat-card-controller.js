@@ -559,6 +559,10 @@ function bindChatChromeControls(chat, card) {
   if (voiceButton) {
     voiceButton.addEventListener("click", () => toggleVoiceInput(chat.id));
   }
+  const cancelEditButton = card.querySelector("[data-action='cancel-edit']");
+  if (cancelEditButton) {
+    cancelEditButton.addEventListener("click", () => cancelEditUserMessage(chat.id));
+  }
   const voiceFileButton = card.querySelector("[data-action='voice-file']");
   if (voiceFileButton) {
     voiceFileButton.addEventListener("click", () => pickLocalWhisperAudioFile(chat.id));
@@ -736,6 +740,13 @@ function bindMessageContentControls(root) {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       copyMessageText(event.currentTarget);
+    });
+  }
+
+  for (const button of root.querySelectorAll("[data-edit-chat]")) {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      beginEditUserMessage(event.currentTarget.dataset.editChat, event.currentTarget.dataset.editIndex);
     });
   }
 }

@@ -15,6 +15,8 @@ function removeChat(chatId) {
 function clearChat(chatId) {
   updateChat(chatId, (chat) => {
     chat.status = "idle";
+    chat.editingMessageAt = 0;
+    chat.draftPrompt = "";
     chat.messages = [{
       role: "system",
       text: "Chat cleared. The Codex thread id is preserved.",
@@ -50,6 +52,58 @@ function stopChat(chatId) {
       at: Date.now()
     });
   });
+}
+
+function beginEditUserMessage(chatId, messageIndex) {
+  const chat = state.chats.find((item) => item.id === chatId);
+  if (!chat || !Array.isArray(chat.messages)) {
+    return;
+  }
+
+  const index = Number.parseInt(messageIndex, 10);
+  const message = chat.messages[index];
+  if (!message || message.role !== "user" || index !== latestUserMessageIndex(chat)) {
+    return;
+  }
+
+  if (voiceChatId === chatId) {
+    stopVoiceInput();
+  }
+  if (chat.status === "running") {
+    vscode.postMessage({ type: "stopChat", chatId });
+  }
+
+  updateChat(chatId, (current) => {
+    current.status = "idle";
+    current.isThinking = false;
+    current.runStartedAt = 0;
+    current.runFinishedAt = 0;
+    current.draftPrompt = editablePromptFromUserMessage(message.text);
+    current.editingMessageAt = Number(message.at || Date.now());
+    current.messages = current.messages.slice(0, index);
+  }, { render: "chrome+messages" });
+
+  requestAnimationFrame(() => {
+    const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+    const textarea = card ? card.querySelector(".promptInput") : null;
+    if (textarea) {
+      textarea.focus();
+      textarea.selectionStart = textarea.value.length;
+      textarea.selectionEnd = textarea.value.length;
+      resizePromptInput(textarea);
+    }
+  });
+}
+
+function cancelEditUserMessage(chatId) {
+  updateChat(chatId, (chat) => {
+    chat.editingMessageAt = 0;
+    chat.draftPrompt = "";
+  }, { render: "chrome" });
+}
+
+function editablePromptFromUserMessage(text) {
+  return String(text || "").replace(/\n\nAttached: .+$/s, "").trim();
 }
 
 function resizePromptInput(textarea) {
@@ -94,9 +148,11 @@ function sendPrompt(chatId) {
 
   textarea.value = "";
   const now = Date.now();
+  const wasEditing = Boolean(chat.editingMessageAt);
   chat.status = "running";
   chat.draftPrompt = "";
   chat.pendingAttachments = [];
+  chat.editingMessageAt = 0;
   chat.updatedAt = now;
   chat.runStartedAt = now;
   chat.runFinishedAt = 0;
@@ -108,13 +164,16 @@ function sendPrompt(chatId) {
   });
 
   const finalPrompt = promptWithAttachments(prompt, attachments);
+  const promptForCodex = wasEditing && chat.sessionId
+    ? "I edited my previous message. Treat this as a replacement for that previous request and answer the revised request only:\n\n" + finalPrompt
+    : finalPrompt;
   syncActiveWorkspaceChat(chatId);
   renderChatCard(chatId);
   persist({ skipFullSync: true });
   vscode.postMessage({
     type: "sendPrompt",
     chatId,
-    prompt: finalPrompt,
+    prompt: promptForCodex,
     sessionId: chat.sessionId,
     settings: chat.settings,
     projectPath: chat.projectPath || currentWorkspacePath() || "",
