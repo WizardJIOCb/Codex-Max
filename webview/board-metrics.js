@@ -64,7 +64,7 @@ function renderBoardUsage(info) {
       <span class="usageDot" aria-hidden="true"></span>
       <span>5h <strong>${escapeHtml(info.fiveHourLabel)}</strong></span>
       <span>Week <strong>${escapeHtml(info.weeklyLabel)}</strong></span>
-      <span>Status <strong>${escapeHtml(info.statusLabel)}</strong></span>
+      <span>Status <strong>${escapeHtml(info.statusDisplayLabel)}</strong></span>
       <span>Resets <strong>${escapeHtml(info.limitResetLabel)}</strong></span>
     </button>
   `;
@@ -97,6 +97,7 @@ function boardUsageInfo(chats, accountRateLimits) {
   const percent = limit ? Math.max(0, Math.min(100, Math.round((used / limit) * 100))) : 0;
   const statusClass = running ? "running" : errors ? "error" : opened ? "opened" : "idle";
   const statusLabelText = running ? "Running" : errors ? "Error" : opened ? "Open" : "Idle";
+  const statusDisplayLabel = running ? statusLabelText + " [" + running + "]" : statusLabelText;
   const fiveHourLabel = accountUsage ? accountUsage.fiveHourLabel : percent + "%";
   const weeklyLabel = accountUsage ? accountUsage.weeklyLabel : "n/a";
   const limitResetLabel = resetCredits;
@@ -115,6 +116,8 @@ function boardUsageInfo(chats, accountRateLimits) {
     weeklyLabel,
     statusClass,
     statusLabel: statusLabelText,
+    statusDisplayLabel,
+    runningChats: running,
     limitResetLabel,
     tooltip
   };

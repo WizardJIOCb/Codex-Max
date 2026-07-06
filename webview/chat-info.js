@@ -225,6 +225,7 @@ function chatInfoHtml(chat) {
         ${chatInfoItem("Reasoning", reasoningLabel)}
         ${chatInfoItem("Verbosity", verbosityLabel)}
         ${chatInfoItem("Web", webLabel)}
+        ${chatInfoItem("Fast mode", settings.fastMode ? "On" : "Off")}
         ${chatInfoItem("Filesystem", sandboxLabel)}
         ${chatInfoItem("Pending attachments", stats.attachmentLabel)}
       </div>

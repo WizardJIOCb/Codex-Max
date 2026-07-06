@@ -11,7 +11,8 @@ async function main() {
     reasoning: "medium",
     verbosity: "high",
     webSearch: "cached",
-    sandbox: "workspace-write"
+    sandbox: "workspace-write",
+    fastMode: false
   };
 
   const fresh = buildCodexArgs({
@@ -40,6 +41,13 @@ async function main() {
   assert(resumed.includes("thread-123"));
   assert(resumed.includes('sandbox_mode="workspace-write"'));
   assert.strictEqual(resumed[resumed.length - 1], "-");
+
+  const fast = buildCodexArgs({
+    sessionId: "",
+    settings: Object.assign({}, settings, { fastMode: true }),
+    cwd: "C:\\Projects\\codex.max"
+  });
+  assert(fast.includes('model_reasoning_effort="minimal"'));
 
   if (process.platform === "win32") {
     await assertWindowsCmdKeepsSpacedArgs();

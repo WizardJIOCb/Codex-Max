@@ -275,7 +275,8 @@ function normalizeSettings(settings) {
     reasoning,
     verbosity,
     sandbox,
-    webSearch
+    webSearch,
+    fastMode: Boolean(next.fastMode)
   };
 }
 
