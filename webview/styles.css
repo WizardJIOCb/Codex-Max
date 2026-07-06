@@ -288,6 +288,7 @@ select {
 }
 
 .chat {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
@@ -307,6 +308,44 @@ select {
   padding: 8px;
   border-bottom: 1px solid #333333;
   background: var(--chatSurface);
+  cursor: grab;
+  user-select: none;
+}
+
+.chatHeader:active {
+  cursor: grabbing;
+}
+
+.chat.chatDragging {
+  opacity: 0.58;
+}
+
+.chat.reorderBefore,
+.chat.reorderAfter {
+  border-color: color-mix(in srgb, var(--chipText), transparent 18%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--chipText), transparent 35%);
+}
+
+.chat.reorderBefore::before,
+.chat.reorderAfter::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  z-index: 4;
+  display: block;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--chipText);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--chipText), transparent 30%);
+}
+
+.chat.reorderBefore::before {
+  top: 6px;
+}
+
+.chat.reorderAfter::after {
+  bottom: 6px;
 }
 
 .title {

@@ -61,6 +61,7 @@ let batchedPersistNeeded = false;
 let animatedMessageKeys = new Set();
 let pendingRenderStatsFrame = 0;
 let rateLimitsRequestedOnce = false;
+let draggedChatId = "";
 let voiceRecognition = null;
 let voiceChatId = "";
 let voiceBaseText = "";

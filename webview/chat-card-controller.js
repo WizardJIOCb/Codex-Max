@@ -518,6 +518,140 @@ function renderEventMessage(chatId, eventId) {
   return true;
 }
 
+function bindChatReorderControls(chat, card) {
+  const header = card ? card.querySelector(".chatHeader") : null;
+  if (!chat || !card || !header) {
+    return;
+  }
+  if (header.dataset.reorderBound === "true") {
+    return;
+  }
+
+  header.dataset.reorderBound = "true";
+  header.draggable = true;
+  header.setAttribute("aria-grabbed", "false");
+
+  header.addEventListener("dragstart", (event) => {
+    if (event.target && event.target.closest && event.target.closest(".actions")) {
+      event.preventDefault();
+      return;
+    }
+
+    draggedChatId = chat.id;
+    header.setAttribute("aria-grabbed", "true");
+    card.classList.add("chatDragging");
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-codex-max-chat", chat.id);
+      event.dataTransfer.setData("text/plain", chat.title || "Codex chat");
+    }
+  });
+
+  header.addEventListener("dragend", () => {
+    draggedChatId = "";
+    header.setAttribute("aria-grabbed", "false");
+    clearChatReorderMarkers();
+  });
+
+  if (card.dataset.reorderDropBound === "true") {
+    return;
+  }
+  card.dataset.reorderDropBound = "true";
+
+  card.addEventListener("dragover", (event) => {
+    if (!isChatReorderDrag(event) || draggedChatId === chat.id) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+    markChatReorderTarget(card, shouldDropAfterCard(event, card));
+  });
+
+  card.addEventListener("dragleave", (event) => {
+    if (!isChatReorderDrag(event)) {
+      return;
+    }
+    if (!event.relatedTarget || !card.contains(event.relatedTarget)) {
+      card.classList.remove("reorderBefore", "reorderAfter");
+    }
+  });
+
+  card.addEventListener("drop", (event) => {
+    if (!isChatReorderDrag(event) || draggedChatId === chat.id) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const sourceId = draggedChatId || (event.dataTransfer ? event.dataTransfer.getData("application/x-codex-max-chat") : "");
+    reorderChat(sourceId, chat.id, shouldDropAfterCard(event, card));
+  });
+}
+
+function isChatReorderDrag(event) {
+  const transfer = event && event.dataTransfer;
+  const types = transfer && transfer.types ? Array.prototype.slice.call(transfer.types) : [];
+  return Boolean(draggedChatId) || types.includes("application/x-codex-max-chat");
+}
+
+function shouldDropAfterCard(event, card) {
+  const rect = card.getBoundingClientRect();
+  const verticalBias = event.clientY > rect.top + rect.height / 2;
+  const horizontalBias = event.clientX > rect.left + rect.width / 2;
+  return verticalBias || horizontalBias;
+}
+
+function markChatReorderTarget(card, after) {
+  for (const item of document.querySelectorAll(".chat.reorderBefore, .chat.reorderAfter")) {
+    if (item !== card) {
+      item.classList.remove("reorderBefore", "reorderAfter");
+    }
+  }
+  card.classList.toggle("reorderBefore", !after);
+  card.classList.toggle("reorderAfter", after);
+}
+
+function clearChatReorderMarkers() {
+  for (const item of document.querySelectorAll(".chatDragging, .reorderBefore, .reorderAfter")) {
+    item.classList.remove("chatDragging", "reorderBefore", "reorderAfter");
+  }
+}
+
+function reorderChat(sourceId, targetId, afterTarget) {
+  if (!sourceId || !targetId || sourceId === targetId) {
+    clearChatReorderMarkers();
+    return;
+  }
+
+  const sourceIndex = state.chats.findIndex((item) => item.id === sourceId);
+  const targetIndex = state.chats.findIndex((item) => item.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0) {
+    clearChatReorderMarkers();
+    return;
+  }
+
+  const nextChats = state.chats.slice();
+  const moved = nextChats.splice(sourceIndex, 1)[0];
+  let insertIndex = nextChats.findIndex((item) => item.id === targetId);
+  if (insertIndex < 0) {
+    insertIndex = nextChats.length;
+  }
+  if (afterTarget) {
+    insertIndex += 1;
+  }
+  nextChats.splice(insertIndex, 0, moved);
+  state.chats = nextChats;
+  draggedChatId = "";
+  clearChatReorderMarkers();
+  syncActiveWorkspaceFromState();
+  refreshBoardGrid({ preserveBoardScroll: true });
+  persist({ skipFullSync: true });
+}
+
 function bindChatChromeControls(chat, card) {
   if (!chat || !card) {
     return;
@@ -532,6 +666,8 @@ function bindChatChromeControls(chat, card) {
       persist({ skipFullSync: true });
     });
   }
+
+  bindChatReorderControls(chat, card);
 
   const removeButton = card.querySelector("[data-action='remove']");
   const clearButton = card.querySelector("[data-action='clear']");
