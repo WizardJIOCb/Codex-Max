@@ -146,6 +146,10 @@ function chatInfoHtml(chat) {
     ["cached", "Web"],
     ["live", "Live web"]
   ]);
+  const speedLabel = selectedLabel(settings.speedTier, [
+    ["standard", "Standard"],
+    ["fast", "Fast"]
+  ]);
   const projectPath = normalizeProjectPath(chat.projectPath || currentWorkspacePath() || "");
   const projectLabel = projectPath || "No project selected";
   const workspacePath = currentWorkspacePath();
@@ -225,7 +229,7 @@ function chatInfoHtml(chat) {
         ${chatInfoItem("Reasoning", reasoningLabel)}
         ${chatInfoItem("Verbosity", verbosityLabel)}
         ${chatInfoItem("Web", webLabel)}
-        ${chatInfoItem("Fast mode", settings.fastMode ? "On" : "Off")}
+        ${chatInfoItem("Speed", speedLabel)}
         ${chatInfoItem("Filesystem", sandboxLabel)}
         ${chatInfoItem("Pending attachments", stats.attachmentLabel)}
       </div>

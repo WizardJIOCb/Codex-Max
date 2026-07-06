@@ -12,7 +12,7 @@ async function main() {
     verbosity: "high",
     webSearch: "cached",
     sandbox: "workspace-write",
-    fastMode: false
+    speedTier: "standard"
   };
 
   const fresh = buildCodexArgs({
@@ -44,10 +44,11 @@ async function main() {
 
   const fast = buildCodexArgs({
     sessionId: "",
-    settings: Object.assign({}, settings, { fastMode: true }),
+    settings: Object.assign({}, settings, { speedTier: "fast" }),
     cwd: "C:\\Projects\\codex.max"
   });
-  assert(fast.includes('model_reasoning_effort="minimal"'));
+  assert(fast.includes('model_reasoning_effort="medium"'));
+  assert(fast.includes('model_service_tier="priority"'));
 
   if (process.platform === "win32") {
     await assertWindowsCmdKeepsSpacedArgs();

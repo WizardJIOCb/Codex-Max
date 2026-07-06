@@ -269,6 +269,7 @@ function normalizeSettings(settings) {
   const verbosity = ["low", "medium", "high"].includes(next.verbosity) ? next.verbosity : DEFAULT_CHAT_SETTINGS.verbosity;
   const sandbox = ["read-only", "workspace-write", "danger-full-access"].includes(next.sandbox) ? next.sandbox : DEFAULT_CHAT_SETTINGS.sandbox;
   const webSearch = ["disabled", "cached", "live"].includes(next.webSearch) ? next.webSearch : DEFAULT_CHAT_SETTINGS.webSearch;
+  const speedTier = ["standard", "fast"].includes(next.speedTier) ? next.speedTier : (next.fastMode ? "fast" : DEFAULT_CHAT_SETTINGS.speedTier);
 
   return {
     model: normalizeModelId(next.model) || DEFAULT_CHAT_SETTINGS.model,
@@ -276,7 +277,7 @@ function normalizeSettings(settings) {
     verbosity,
     sandbox,
     webSearch,
-    fastMode: Boolean(next.fastMode)
+    speedTier
   };
 }
 

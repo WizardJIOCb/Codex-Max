@@ -110,11 +110,6 @@ function renderChat(chat) {
                   <path d="M8 21h8"></path>
                 </svg>
               </button>
-              <button class="composerIcon fastMode${settings.fastMode ? " active" : ""}" type="button" data-action="fast-mode" title="${settings.fastMode ? "Fast mode is on: minimal reasoning for the next request" : "Fast mode is off"}" aria-label="Toggle fast mode" aria-pressed="${settings.fastMode ? "true" : "false"}" ${isRunning ? "disabled" : ""}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"></path>
-                </svg>
-              </button>
               <div class="composerSettings" aria-label="Codex prompt settings">
                 ${selectChip("sandbox", "Filesystem access", settings.sandbox, [
                   ["read-only", "Read access"],
@@ -137,6 +132,10 @@ function renderChat(chat) {
                   ["disabled", "Web off"],
                   ["cached", "Web"],
                   ["live", "Live web"]
+                ], isRunning)}
+                ${selectChip("speedTier", "Speed", settings.speedTier, [
+                  ["standard", "Standard"],
+                  ["fast", "Fast"]
                 ], isRunning)}
               </div>
             </div>

@@ -35,7 +35,7 @@ const DEFAULT_CHAT_SETTINGS = {
   verbosity: "medium",
   sandbox: "read-only",
   webSearch: "cached",
-  fastMode: false
+  speedTier: "standard"
 };
 let activeSelectMenu = null;
 let activeWorkspaceMenu = null;

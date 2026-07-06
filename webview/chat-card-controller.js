@@ -559,17 +559,6 @@ function bindChatChromeControls(chat, card) {
   if (voiceButton) {
     voiceButton.addEventListener("click", () => toggleVoiceInput(chat.id));
   }
-  const fastModeButton = card.querySelector("[data-action='fast-mode']");
-  if (fastModeButton) {
-    fastModeButton.addEventListener("click", () => {
-      updateChat(chat.id, (current) => {
-        current.settings = normalizeSettings(current.settings);
-        current.settings.fastMode = !current.settings.fastMode;
-        current.updatedAt = Date.now();
-      }, { render: "chrome" });
-      persist({ skipFullSync: true });
-    });
-  }
   const cancelEditButton = card.querySelector("[data-action='cancel-edit']");
   if (cancelEditButton) {
     cancelEditButton.addEventListener("click", () => cancelEditUserMessage(chat.id));
