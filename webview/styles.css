@@ -1070,6 +1070,13 @@ select {
   background: #272727;
 }
 
+.changeTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .changeFilePath {
   min-width: 0;
   overflow: hidden;
@@ -1081,6 +1088,46 @@ select {
 .changeCounts {
   color: var(--muted);
   white-space: nowrap;
+}
+
+.diffNav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.diffNavButton {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.diffNavButton:hover {
+  border-color: var(--border);
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.diffNavButton:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.diffNavButton svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .changeAdd {
@@ -1141,6 +1188,12 @@ select {
 
 .diffContext {
   color: var(--fg);
+}
+
+.diffLine.currentDiffChange {
+  outline: 1px solid color-mix(in srgb, var(--chipText), transparent 22%);
+  outline-offset: -1px;
+  box-shadow: inset 3px 0 0 var(--chipText);
 }
 
 .changeEmpty {

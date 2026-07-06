@@ -868,6 +868,14 @@ function bindMessageContentControls(root) {
     });
   }
 
+  for (const button of root.querySelectorAll("[data-diff-nav]")) {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      navigateDiffChange(event.currentTarget);
+    });
+  }
+
   for (const link of root.querySelectorAll("[data-open-file]")) {
     link.addEventListener("click", (event) => {
       event.preventDefault();
@@ -1024,6 +1032,9 @@ function toggleEventDetails(item) {
     toggle.setAttribute("title", title);
     toggle.setAttribute("aria-label", title);
   }
+  if (expanded && item.classList.contains("files")) {
+    scrollToFirstDiffChange(item);
+  }
 }
 
 function toggleChangeDetails(item) {
@@ -1039,4 +1050,74 @@ function toggleChangeDetails(item) {
     toggle.setAttribute("title", title);
     toggle.setAttribute("aria-label", title);
   }
+  if (expanded) {
+    scrollToFirstDiffChange(item);
+  }
+}
+
+function navigateDiffChange(button) {
+  const item = button ? button.closest(".message.event, .message.changeSummary") : null;
+  if (!item) {
+    return;
+  }
+
+  if (!item.classList.contains("expanded")) {
+    item.classList.add("expanded");
+    const summary = item.querySelector(".eventSummary, .changeCard");
+    const toggle = item.querySelector(".eventToggle, .changeAction");
+    if (summary) {
+      summary.setAttribute("aria-expanded", "true");
+    }
+    if (toggle) {
+      toggle.setAttribute("title", "Collapse details");
+      toggle.setAttribute("aria-label", "Collapse details");
+    }
+  }
+
+  const direction = button.dataset.diffNav === "prev" ? -1 : 1;
+  scrollToDiffChange(item, direction);
+}
+
+function scrollToFirstDiffChange(item) {
+  const target = firstDiffChange(item);
+  if (target) {
+    scrollDiffChangeIntoView(target);
+  }
+}
+
+function scrollToDiffChange(item, direction) {
+  const changes = Array.from(item.querySelectorAll("[data-diff-change]"));
+  if (!changes.length) {
+    return;
+  }
+
+  const current = item.querySelector(".diffLine.currentDiffChange");
+  let index = current ? changes.indexOf(current) : -1;
+  if (index < 0) {
+    index = direction > 0 ? -1 : 0;
+  }
+  const nextIndex = (index + direction + changes.length) % changes.length;
+  scrollDiffChangeIntoView(changes[nextIndex]);
+}
+
+function firstDiffChange(item) {
+  return item ? item.querySelector("[data-diff-change]") : null;
+}
+
+function scrollDiffChangeIntoView(target) {
+  if (!target) {
+    return;
+  }
+
+  const item = target.closest(".message.event, .message.changeSummary");
+  if (item) {
+    for (const current of item.querySelectorAll(".currentDiffChange")) {
+      current.classList.remove("currentDiffChange");
+    }
+  }
+  target.classList.add("currentDiffChange");
+  target.scrollIntoView({
+    block: "center",
+    inline: "nearest"
+  });
 }

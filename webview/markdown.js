@@ -388,15 +388,18 @@ function renderDiffBlock(value) {
 
 function renderDiffLine(line) {
   let cls = "diffContext";
+  let changeAttr = "";
   if (/^@@/.test(line)) {
     cls = "diffHunk";
   } else if (/^\+/.test(line)) {
     cls = "diffAdd";
+    changeAttr = ' data-diff-change="true"';
   } else if (/^-/.test(line)) {
     cls = "diffDelete";
+    changeAttr = ' data-diff-change="true"';
   }
 
-  return '<span class="diffLine ' + cls + '">' + escapeHtml(line || " ") + '</span>';
+  return '<span class="diffLine ' + cls + '"' + changeAttr + '>' + escapeHtml(line || " ") + '</span>';
 }
 
 function renderChangeFileRow(change) {
@@ -404,7 +407,17 @@ function renderChangeFileRow(change) {
   return `
     <div class="changeFileRow">
       <span class="changeFilePath" title="${escapeAttr(change.path)}">${escapeHtml(change.path)}</span>
-      <span class="changeCounts">${counts || escapeHtml(change.kind || "edited")}</span>
+      <span class="changeTools">
+        <span class="changeCounts">${counts || escapeHtml(change.kind || "edited")}</span>
+        <span class="diffNav" aria-label="Diff navigation">
+          <button class="diffNavButton" type="button" data-diff-nav="prev" title="Previous change" aria-label="Previous change">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10.5 8 6l4 4.5"></path></svg>
+          </button>
+          <button class="diffNavButton" type="button" data-diff-nav="next" title="Next change" aria-label="Next change">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 5.5 4 4.5 4-4.5"></path></svg>
+          </button>
+        </span>
+      </span>
     </div>
   `;
 }
