@@ -54,6 +54,7 @@ function render(options) {
   bindImageViewerDialog();
 
   bindChatCards(previousScrollState, autoScroll);
+  refreshAllChatContextIndicators();
 
   restoreBoardScroll(previousBoardScroll);
   updateVoiceButtons();
@@ -92,6 +93,7 @@ function refreshBoardGrid(options) {
   const board = normalizeBoardSettings(state.boardSettings);
   boardNode.innerHTML = renderBoardGrid(board);
   bindChatCards(previousScrollState, board.autoScroll);
+  refreshAllChatContextIndicators();
   refreshToolbar();
   restoreBoardScroll(previousBoardScroll);
   updateVoiceButtons();

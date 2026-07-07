@@ -37,9 +37,14 @@ function estimateAttachmentTokens(chat) {
 
 
 function renderContextIndicator(info) {
-  const rawAngle = Math.max(0, Math.min(360, info.percent * 3.6));
-  const angle = info.used > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
+  const angle = contextIndicatorAngle(info);
   return '<button class="contextIndicator" type="button" data-action="context-info" style="--contextAngle: ' + angle + 'deg;" title="' + escapeAttr(info.tooltip + "\nClick for chat information") + '" aria-label="' + escapeAttr(info.tooltip + "\nOpen chat information") + '"></button>';
+}
+
+function contextIndicatorAngle(info) {
+  const context = info || {};
+  const rawAngle = Math.max(0, Math.min(360, Number(context.percent || 0) * 3.6));
+  return Number(context.used || 0) > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
 }
 
 function renderWorkspaceSelector() {

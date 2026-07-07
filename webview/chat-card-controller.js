@@ -115,12 +115,18 @@ function refreshChatContextIndicator(chatId) {
 
   const settings = normalizeSettings(chat.settings);
   const info = contextUsageInfo(chat, settings.model);
-  const rawAngle = Math.max(0, Math.min(360, info.percent * 3.6));
-  const angle = info.used > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
+  const angle = contextIndicatorAngle(info);
   const label = info.tooltip + "\nClick for chat information";
   indicator.style.setProperty("--contextAngle", angle + "deg");
   indicator.setAttribute("title", label);
   indicator.setAttribute("aria-label", label);
+}
+
+function refreshAllChatContextIndicators() {
+  const chats = Array.isArray(state.chats) ? state.chats : [];
+  for (const chat of chats) {
+    refreshChatContextIndicator(chat.id);
+  }
 }
 
 function renderChatMessagesPanel(chatId, options) {
