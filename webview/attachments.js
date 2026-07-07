@@ -44,6 +44,115 @@ function bindFileDrop(card, chatId, isRunning) {
   });
 }
 
+function bindClipboardImagePaste(input, chatId, isRunning) {
+  if (!input || isRunning) {
+    return;
+  }
+  if (input.dataset.clipboardImagesBound === "true") {
+    return;
+  }
+
+  input.dataset.clipboardImagesBound = "true";
+
+  input.addEventListener("paste", (event) => {
+    const current = state.chats.find((chat) => chat.id === chatId);
+    if (current && current.status === "running") {
+      return;
+    }
+
+    const clipboard = event.clipboardData;
+    const items = clipboard && clipboard.items ? Array.prototype.slice.call(clipboard.items) : [];
+    const imageItems = items.filter((item) => item && item.kind === "file" && /^image\//i.test(item.type || ""));
+    if (!imageItems.length) {
+      return;
+    }
+
+    event.preventDefault();
+    Promise.all(imageItems.map(readClipboardImageItem)).then((images) => {
+      const clean = images.filter(Boolean);
+      if (!clean.length) {
+        return;
+      }
+
+      vscode.postMessage({
+        type: "pasteImages",
+        chatId,
+        images: clean
+      });
+    }).catch((error) => {
+      addMessage(chatId, "error", "Could not attach pasted image: " + (error.message || error));
+    });
+  });
+}
+
+function readClipboardImageItem(item, index) {
+  return new Promise((resolve) => {
+    const file = item && item.getAsFile ? item.getAsFile() : null;
+    if (!file) {
+      resolve(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      resolve({
+        name: clipboardImageName(file, index),
+        mime: file.type || item.type || "image/png",
+        size: Number(file.size || 0),
+        dataUrl
+      });
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function clipboardImageName(file, index) {
+  const provided = String(file && file.name || "").trim();
+  if (provided) {
+    return provided;
+  }
+
+  const ext = imageExtensionFromMime(file && file.type);
+  return "clipboard-image-" + timestampForFileName() + "-" + String(index + 1) + ext;
+}
+
+function imageExtensionFromMime(mime) {
+  const normalized = String(mime || "").toLowerCase();
+  if (normalized === "image/jpeg") {
+    return ".jpg";
+  }
+  if (normalized === "image/webp") {
+    return ".webp";
+  }
+  if (normalized === "image/gif") {
+    return ".gif";
+  }
+  if (normalized === "image/bmp") {
+    return ".bmp";
+  }
+  if (normalized === "image/svg+xml") {
+    return ".svg";
+  }
+
+  return ".png";
+}
+
+function timestampForFileName() {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate())
+  ].join("") + "-" + [
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds())
+  ].join("");
+}
+
 function hasDraggedFiles(event) {
   const transfer = event && event.dataTransfer;
   const types = transfer && transfer.types ? Array.prototype.slice.call(transfer.types) : [];

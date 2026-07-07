@@ -826,6 +826,7 @@ function bindChatChromeControls(chat, card) {
   });
   resizePromptInput(promptInput);
   bindFileDrop(card, chat.id, chat.status === "running");
+  bindClipboardImagePaste(promptInput, chat.id, chat.status === "running");
 }
 
 function bindChatCardControls(chat, card, previousScroll, autoScroll) {

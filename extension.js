@@ -219,6 +219,11 @@ class ChatBoardPanel {
       return;
     }
 
+    if (message.type === "pasteImages") {
+      await this.attachPastedImages(message.chatId, message.images);
+      return;
+    }
+
     if (message.type === "pickProject") {
       await this.pickProject(message.chatId);
       return;
@@ -397,6 +402,55 @@ class ChatBoardPanel {
         attachments
       });
     }
+  }
+
+  async attachPastedImages(chatId, images) {
+    const clean = Array.isArray(images) ? images.filter(Boolean).slice(0, 10) : [];
+    if (!clean.length) {
+      return;
+    }
+
+    const targetDir = await this.clipboardAttachmentDirectory();
+    const attachments = [];
+
+    for (let index = 0; index < clean.length; index += 1) {
+      const image = clean[index];
+      const parsed = parseImageDataUrl(image.dataUrl, image.mime);
+      if (!parsed) {
+        continue;
+      }
+
+      if (parsed.buffer.length > MAX_IMAGE_PREVIEW_BYTES) {
+        vscode.window.showWarningMessage(`Codex Max skipped ${image.name || "pasted image"} because it is larger than ${formatBytesForHost(MAX_IMAGE_PREVIEW_BYTES)}.`);
+        continue;
+      }
+
+      const fileName = await uniqueFileName(targetDir, image.name, parsed.mime, index);
+      const filePath = path.join(targetDir, fileName);
+      await fs.promises.writeFile(filePath, parsed.buffer);
+
+      const attachment = await createAttachmentFromUri(vscode.Uri.file(filePath), getWorkspacePath());
+      if (attachment) {
+        attachments.push(attachment);
+      }
+    }
+
+    if (attachments.length) {
+      this.post({
+        type: "filesAttached",
+        chatId,
+        attachments
+      });
+    }
+  }
+
+  async clipboardAttachmentDirectory() {
+    const workspacePath = getWorkspacePath();
+    const targetDir = workspacePath
+      ? path.join(workspacePath, ".codex-max", "attachments")
+      : path.join(this.context.globalStorageUri.fsPath, "clipboard-images");
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    return targetDir;
   }
 
   async pickProject(chatId) {
@@ -1078,6 +1132,79 @@ async function pickJsonFile(openLabel) {
   });
 
   return uris && uris.length ? uris[0] : null;
+}
+
+function parseImageDataUrl(dataUrl, fallbackMime) {
+  const value = String(dataUrl || "");
+  const match = value.match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const mime = String(match[1] || fallbackMime || "image/png").toLowerCase();
+  if (!mime.startsWith("image/")) {
+    return null;
+  }
+
+  const base64 = String(match[2] || "").replace(/\s+/g, "");
+  if (!base64) {
+    return null;
+  }
+
+  return {
+    mime,
+    buffer: Buffer.from(base64, "base64")
+  };
+}
+
+async function uniqueFileName(targetDir, preferredName, mime, index) {
+  const ext = extensionForImageMime(mime);
+  const fallbackName = `clipboard-image-${dateStamp()}-${index + 1}${ext}`;
+  const original = safeFileName(preferredName || fallbackName);
+  const baseName = path.extname(original) ? original : `${original}${ext}`;
+  const parsed = path.parse(baseName);
+  let candidate = baseName;
+  let suffix = 1;
+
+  while (await fileExists(path.join(targetDir, candidate))) {
+    candidate = `${parsed.name}-${suffix}${parsed.ext || ext}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function extensionForImageMime(mime) {
+  const normalized = String(mime || "").toLowerCase();
+  if (normalized === "image/jpeg") {
+    return ".jpg";
+  }
+  if (normalized === "image/webp") {
+    return ".webp";
+  }
+  if (normalized === "image/gif") {
+    return ".gif";
+  }
+  if (normalized === "image/bmp") {
+    return ".bmp";
+  }
+  if (normalized === "image/svg+xml") {
+    return ".svg";
+  }
+
+  return ".png";
+}
+
+function formatBytesForHost(value) {
+  const bytes = Number(value || 0);
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${bytes} B`;
 }
 
 function getWorkspacePath() {

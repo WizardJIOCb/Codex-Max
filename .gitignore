@@ -7,3 +7,4 @@ test.txt
 test.*
 codex-max-workspaces-*.json
 codex-max-preset-*.json
+.codex-max/
