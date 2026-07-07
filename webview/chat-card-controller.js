@@ -804,7 +804,21 @@ function bindChatChromeControls(chat, card) {
 
   for (const remove of card.querySelectorAll("[data-remove-attachment]")) {
     remove.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       removeAttachment(chat.id, event.currentTarget.dataset.removeAttachment);
+    });
+  }
+
+  for (const preview of card.querySelectorAll(".attachmentTray [data-image-path]")) {
+    requestImagePreview(preview);
+  }
+
+  for (const preview of card.querySelectorAll(".attachmentTray [data-image-open]")) {
+    preview.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openImageViewer(event.currentTarget);
     });
   }
 
