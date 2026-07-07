@@ -98,10 +98,29 @@ function renderChatChrome(chatId) {
   currentHeader.replaceWith(nextHeader);
   currentComposer.replaceWith(nextComposer);
   bindChatChromeControls(chat, card);
+  refreshChatContextIndicator(chatId);
   refreshBoardUsage();
   updateVoiceButtons();
   syncDurationTimer();
   return true;
+}
+
+function refreshChatContextIndicator(chatId) {
+  const chat = state.chats.find((item) => item.id === chatId);
+  const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+  const indicator = card ? card.querySelector(".contextIndicator") : null;
+  if (!chat || !indicator) {
+    return;
+  }
+
+  const settings = normalizeSettings(chat.settings);
+  const info = contextUsageInfo(chat, settings.model);
+  const rawAngle = Math.max(0, Math.min(360, info.percent * 3.6));
+  const angle = info.used > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
+  const label = info.tooltip + "\nClick for chat information";
+  indicator.style.setProperty("--contextAngle", angle + "deg");
+  indicator.setAttribute("title", label);
+  indicator.setAttribute("aria-label", label);
 }
 
 function renderChatMessagesPanel(chatId, options) {
@@ -177,6 +196,7 @@ function renderChatMessagesPanel(chatId, options) {
   countRenderStat("messageNodesCreated", created);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
   startQueuedMessageAnimations(animationQueue, chatId, messages);
+  refreshChatContextIndicator(chatId);
   if (!renderOptions.deferAfterRender) {
     refreshBoardUsage();
     updateVoiceButtons();
@@ -526,6 +546,7 @@ function renderEventMessage(chatId, eventId) {
   bindMessageContentControls(nextNode);
   const board = normalizeBoardSettings(state.boardSettings);
   restoreMessageScroll(chatId, messages, previousScroll, board.autoScroll, chatScrollSignature(chat));
+  refreshChatContextIndicator(chatId);
   refreshBoardUsage();
   updateVoiceButtons();
   syncDurationTimer();
