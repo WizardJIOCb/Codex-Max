@@ -27,11 +27,21 @@ function applyImagePreview(message) {
   const img = element.querySelector("img");
   const placeholder = element.querySelector(".imagePreviewPlaceholder");
   if (message.dataUri && img) {
-    img.onload = () => restoreImagePreviewScroll(element);
+    img.onload = () => {
+      restoreImagePreviewScroll(element);
+      if (element.dataset.openAfterLoad === "true") {
+        delete element.dataset.openAfterLoad;
+        openImageViewer(element);
+      }
+    };
     img.src = message.dataUri;
     img.hidden = false;
     element.classList.add("loaded");
     restoreImagePreviewScroll(element);
+    if (element.dataset.openAfterLoad === "true" && img.complete) {
+      delete element.dataset.openAfterLoad;
+      openImageViewer(element);
+    }
     return;
   }
 
@@ -135,6 +145,7 @@ function openImageViewer(preview) {
     if (placeholder) {
       placeholder.textContent = "Image is still loading...";
     }
+    preview.dataset.openAfterLoad = "true";
     requestImagePreview(preview);
     return;
   }

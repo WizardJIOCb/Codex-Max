@@ -2,7 +2,7 @@
   "name": "codex-max",
   "displayName": "Codex Max",
   "description": "A VS Code workspace tab with a compact multi-chat Codex board.",
-  "version": "0.0.171",
+  "version": "0.0.172",
   "publisher": "local",
   "repository": {
     "type": "git",
