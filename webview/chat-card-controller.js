@@ -115,9 +115,12 @@ function refreshChatContextIndicator(chatId) {
 
   const settings = normalizeSettings(chat.settings);
   const info = contextUsageInfo(chat, settings.model);
-  const angle = contextIndicatorAngle(info);
+  const progress = contextIndicatorProgress(info);
   const label = info.tooltip + "\nClick for chat information";
-  indicator.style.setProperty("--contextAngle", angle + "deg");
+  const progressRing = indicator.querySelector(".contextRingProgress");
+  if (progressRing) {
+    progressRing.style.strokeDasharray = progress + " 100";
+  }
   indicator.setAttribute("title", label);
   indicator.setAttribute("aria-label", label);
 }

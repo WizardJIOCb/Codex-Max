@@ -37,14 +37,14 @@ function estimateAttachmentTokens(chat) {
 
 
 function renderContextIndicator(info) {
-  const angle = contextIndicatorAngle(info);
-  return '<button class="contextIndicator" type="button" data-action="context-info" style="--contextAngle: ' + angle + 'deg;" title="' + escapeAttr(info.tooltip + "\nClick for chat information") + '" aria-label="' + escapeAttr(info.tooltip + "\nOpen chat information") + '"></button>';
+  const progress = contextIndicatorProgress(info);
+  return '<button class="contextIndicator" type="button" data-action="context-info" title="' + escapeAttr(info.tooltip + "\nClick for chat information") + '" aria-label="' + escapeAttr(info.tooltip + "\nOpen chat information") + '"><svg class="contextRing" viewBox="0 0 20 20" aria-hidden="true"><circle class="contextRingTrack" cx="10" cy="10" r="7" pathLength="100"></circle><circle class="contextRingProgress" cx="10" cy="10" r="7" pathLength="100" style="stroke-dasharray: ' + progress + ' 100;"></circle></svg></button>';
 }
 
-function contextIndicatorAngle(info) {
+function contextIndicatorProgress(info) {
   const context = info || {};
-  const rawAngle = Math.max(0, Math.min(360, Number(context.percent || 0) * 3.6));
-  return Number(context.used || 0) > 0 ? Math.max(5, Math.round(rawAngle * 10) / 10) : 0;
+  const percent = Math.max(0, Math.min(100, Number(context.percent || 0)));
+  return Number(context.used || 0) > 0 ? Math.max(1.4, Math.round(percent * 10) / 10) : 0;
 }
 
 function renderWorkspaceSelector() {
