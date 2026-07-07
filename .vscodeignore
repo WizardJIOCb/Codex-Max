@@ -1,5 +1,6 @@
 .vscode/**
 .gitignore
+.codex-max/**
 node_modules/**
 *.vsix
 test.txt

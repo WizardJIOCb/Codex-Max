@@ -301,9 +301,16 @@ function turnDurationInsertIndex(messages, startedAt) {
 function renderAttachmentChip(attachment) {
   const label = attachment.relativePath || attachment.name || "file";
   const title = (attachment.path || label) + (attachment.size ? " - " + formatBytes(attachment.size) : "");
+  const imagePath = attachment.path || attachment.relativePath || attachment.name || "";
+  const labelMarkup = isAttachmentImage(imagePath)
+    ? '<button class="attachmentOpen" type="button" data-image-open="true" data-image-path="' + escapeAttr(imagePath) + '" data-image-caption="' + escapeAttr(label) + '" title="Open image preview: ' + escapeAttr(title) + '">' +
+      '<span>' + escapeHtml(label) + '</span>' +
+      '<img hidden alt="' + escapeAttr(label) + '">' +
+      '</button>'
+    : '<span>' + escapeHtml(label) + '</span>';
   return `
     <span class="attachmentChip" title="${escapeAttr(title)}">
-      <span>${escapeHtml(label)}</span>
+      ${labelMarkup}
       <button class="attachmentRemove" type="button" data-remove-attachment="${escapeAttr(attachment.id)}" title="Remove attachment" aria-label="Remove attachment">
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M4 4l8 8"></path>
@@ -312,6 +319,10 @@ function renderAttachmentChip(attachment) {
       </button>
     </span>
   `;
+}
+
+function isAttachmentImage(value) {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(String(value || ""));
 }
 
 function renderMessage(item, chat, index) {
