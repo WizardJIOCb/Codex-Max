@@ -104,6 +104,7 @@ class ChatBoardPanel {
     this.runner = runner;
     this.disposables = [];
     this.rateLimitsRefreshInFlight = null;
+    this.rateLimitsRefreshTimer = null;
     this.whisper = new WhisperManager({
       models: LOCAL_WHISPER_MODELS,
       runtime: WHISPER_RUNTIME,
@@ -519,6 +520,19 @@ class ChatBoardPanel {
         this.rateLimitsRefreshInFlight = null;
       });
     return this.rateLimitsRefreshInFlight;
+  }
+
+  scheduleRateLimitsRefresh(silent, delayMs) {
+    if (this.rateLimitsRefreshTimer) {
+      clearTimeout(this.rateLimitsRefreshTimer);
+      this.rateLimitsRefreshTimer = null;
+    }
+
+    const delay = Math.max(0, Number(delayMs || 0));
+    this.rateLimitsRefreshTimer = setTimeout(() => {
+      this.rateLimitsRefreshTimer = null;
+      this.refreshRateLimits(Boolean(silent));
+    }, delay);
   }
 
   async refreshRateLimitsNow(silent) {
@@ -1108,6 +1122,10 @@ class ChatBoardPanel {
 
   dispose() {
     boardPanel = undefined;
+    if (this.rateLimitsRefreshTimer) {
+      clearTimeout(this.rateLimitsRefreshTimer);
+      this.rateLimitsRefreshTimer = null;
+    }
     this.stopAllWhisperLive();
     this.runner.stopAll();
 
