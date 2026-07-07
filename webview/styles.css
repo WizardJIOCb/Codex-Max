@@ -881,6 +881,50 @@ select {
   color: var(--fg);
 }
 
+.messageAttachments {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.messageAttachments:empty {
+  display: none;
+}
+
+.messageAttachments .imagePreviewFrame {
+  max-width: 100%;
+  margin: 0;
+}
+
+.messageAttachments .imagePreviewButton {
+  background: #252525;
+}
+
+.messageAttachmentFile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  width: fit-content;
+  padding: 5px 8px;
+  border: 1px solid #454545;
+  border-radius: 8px;
+  background: #2c2c2c;
+  color: var(--messageText);
+  font-size: 12px;
+}
+
+.messageAttachmentFile span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messageAttachmentFile span + span {
+  color: var(--muted);
+}
+
 .userMeta {
   display: flex;
   justify-content: flex-end;

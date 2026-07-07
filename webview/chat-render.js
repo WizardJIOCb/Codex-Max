@@ -29,6 +29,15 @@ function chatScrollSignature(chat) {
       String(message.title || ""),
       String(message.detail || "").length,
       String(message.raw || "").length,
+      Array.isArray(message.attachments)
+        ? message.attachments.map((attachment) => [
+            attachment.id || "",
+            attachment.path || "",
+            attachment.relativePath || "",
+            attachment.name || "",
+            attachment.size || 0
+          ].join(":")).join(",")
+        : "",
       changes
     ].join("|"));
   }
@@ -325,6 +334,38 @@ function isAttachmentImage(value) {
   return /\.(png|jpe?g|gif|webp|bmp|svg)(?:[?#].*)?$/i.test(String(value || ""));
 }
 
+function userMessageDisplayText(text, attachments) {
+  const source = String(text || "");
+  if (!attachments || !attachments.length) {
+    return source;
+  }
+
+  return source.replace(/\n\nAttached: .+$/s, "").trim();
+}
+
+function renderUserAttachments(attachments) {
+  const clean = Array.isArray(attachments) ? attachments.filter((item) => item && (item.path || item.relativePath || item.name)) : [];
+  if (!clean.length) {
+    return "";
+  }
+
+  return '<div class="messageAttachments">' + clean.map(renderUserAttachment).join("") + '</div>';
+}
+
+function renderUserAttachment(attachment) {
+  const label = attachment.relativePath || attachment.name || attachment.path || "file";
+  const target = attachment.path || attachment.relativePath || attachment.name || "";
+  if (isAttachmentImage(target)) {
+    return renderImagePreview(target, label, false);
+  }
+
+  const title = (attachment.path || label) + (attachment.size ? " - " + formatBytes(attachment.size) : "");
+  return '<span class="messageAttachmentFile" title="' + escapeAttr(title) + '">' +
+    '<span>' + escapeHtml(label) + '</span>' +
+    (attachment.size ? '<span>' + escapeHtml(formatBytes(attachment.size)) + '</span>' : '') +
+    '</span>';
+}
+
 function renderMessage(item, chat, index) {
   const keyAttrs = messageIdentityAttrs(item, chat, index);
   if (item.role === "changeSummary") {
@@ -388,9 +429,12 @@ function renderMessage(item, chat, index) {
 
   if (item.role === "user") {
     const canEdit = index === latestUserMessageIndex(chat);
+    const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+    const text = userMessageDisplayText(item.text, attachments);
     return `
       <div class="message user"${keyAttrs}>
-        ${renderPlainText(item.text)}
+        ${text ? renderPlainText(text) : ""}
+        ${renderUserAttachments(attachments)}
         <div class="userMeta">
           <span title="${escapeAttr(formatDateTime(item.at))}">${escapeHtml(formatMessageTime(item.at))}</span>
           ${canEdit ? `

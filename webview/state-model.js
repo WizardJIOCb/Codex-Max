@@ -118,6 +118,7 @@ function normalizeChatMessage(item, fallbackTime) {
     runStartedAt: Number(source.runStartedAt || 0),
     runFinishedAt: Number(source.runFinishedAt || 0),
     raw: source.raw ? String(source.raw) : "",
+    attachments: Array.isArray(source.attachments) ? source.attachments.map(normalizeAttachment) : [],
     changes: Array.isArray(source.changes) ? source.changes.map(normalizeChangeEntry) : []
   };
 }

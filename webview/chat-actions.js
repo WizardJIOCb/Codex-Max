@@ -81,6 +81,7 @@ function beginEditUserMessage(chatId, messageIndex) {
     current.runStartedAt = 0;
     current.runFinishedAt = 0;
     current.draftPrompt = editablePromptFromUserMessage(message.text);
+    current.pendingAttachments = Array.isArray(message.attachments) ? message.attachments.map(normalizeAttachment) : [];
     current.editingMessageAt = Number(message.at || Date.now());
     current.messages = current.messages.slice(0, index);
   }, { render: "chrome+messages" });
@@ -105,6 +106,7 @@ function cancelEditUserMessage(chatId) {
     chat.editingMessageAt = 0;
     chat.editingOriginalMessages = [];
     chat.draftPrompt = "";
+    chat.pendingAttachments = [];
   }, { render: "chrome+messages" });
 }
 
@@ -159,6 +161,7 @@ function sendPrompt(chatId) {
   textarea.value = "";
   const now = Date.now();
   const wasEditing = Boolean(chat.editingMessageAt);
+  const sentAttachments = attachments.map(normalizeAttachment);
   chat.status = "running";
   chat.draftPrompt = "";
   chat.pendingAttachments = [];
@@ -171,6 +174,7 @@ function sendPrompt(chatId) {
   chat.messages.push({
     role: "user",
     text: userMessageText(prompt, attachments),
+    attachments: sentAttachments,
     at: now
   });
 
