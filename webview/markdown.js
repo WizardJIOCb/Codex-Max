@@ -35,51 +35,72 @@ function renderMarkdownText(value) {
     return "";
   }
 
-  return blocks.map((block) => {
-    const lines = block.split(/\n/).filter((line) => line.trim().length);
-    if (!lines.length) {
-      return "";
+  let html = "";
+  let index = 0;
+
+  while (index < blocks.length) {
+    const looseList = renderLooseMarkdownList(blocks, index);
+    if (looseList) {
+      html += looseList.html;
+      index = looseList.next;
+      continue;
     }
 
-    if (lines.every((line) => /^\s*[-*_]{3,}\s*$/.test(line))) {
-      return "<hr>";
-    }
+    html += renderMarkdownBlock(blocks[index]);
+    index += 1;
+  }
 
-    if (lines.every((line) => /^    /.test(line))) {
-      return renderCodeBlock(lines.map((line) => line.replace(/^    /, "")).join("\n"), "");
-    }
+  return html;
+}
 
-    if (lines[0].trim() === "\\[" && lines[lines.length - 1].trim() === "\\]") {
-      return '<div class="mathBlock">' + escapeHtml(lines.slice(1, -1).join("\n")) + '</div>';
-    }
+function renderMarkdownBlock(block) {
+  const lines = blockLines(block);
+  if (!lines.length) {
+    return "";
+  }
 
-    if (isMarkdownTable(lines)) {
-      return renderMarkdownTable(lines);
-    }
+  if (lines.every((line) => /^\s*[-*_]{3,}\s*$/.test(line))) {
+    return "<hr>";
+  }
 
-    if (isHtmlDetailsBlock(lines)) {
-      return renderHtmlDetailsBlock(lines);
-    }
+  if (lines.every((line) => /^    /.test(line))) {
+    return renderCodeBlock(lines.map((line) => line.replace(/^    /, "")).join("\n"), "");
+  }
 
-    if (isDefinitionList(lines)) {
-      return renderDefinitionList(lines);
-    }
+  if (lines[0].trim() === "\\[" && lines[lines.length - 1].trim() === "\\]") {
+    return '<div class="mathBlock">' + escapeHtml(lines.slice(1, -1).join("\n")) + '</div>';
+  }
 
-    if (lines.every((line) => /^\s*>\s?/.test(line))) {
-      return '<blockquote>' + renderMarkdownText(lines.map((line) => line.replace(/^\s*>\s?/, "")).join("\n")) + '</blockquote>';
-    }
+  if (isMarkdownTable(lines)) {
+    return renderMarkdownTable(lines);
+  }
 
-    if (lines.every((line) => parseMarkdownListItem(line))) {
-      return renderMarkdownList(lines);
-    }
+  if (isHtmlDetailsBlock(lines)) {
+    return renderHtmlDetailsBlock(lines);
+  }
 
-    if (/^#{1,4}\s+/.test(lines[0]) && lines.length === 1) {
-      const level = Math.min(4, lines[0].match(/^#+/)[0].length + 2);
-      return '<h' + level + '>' + renderInlineMarkdown(lines[0].replace(/^#{1,4}\s+/, "")) + '</h' + level + '>';
-    }
+  if (isDefinitionList(lines)) {
+    return renderDefinitionList(lines);
+  }
 
-    return renderMixedMarkdownLines(lines);
-  }).join("");
+  if (lines.every((line) => /^\s*>\s?/.test(line))) {
+    return '<blockquote>' + renderMarkdownText(lines.map((line) => line.replace(/^\s*>\s?/, "")).join("\n")) + '</blockquote>';
+  }
+
+  if (isPureMarkdownListBlock(lines)) {
+    return renderMarkdownList(lines);
+  }
+
+  if (/^#{1,4}\s+/.test(lines[0]) && lines.length === 1) {
+    const level = Math.min(4, lines[0].match(/^#+/)[0].length + 2);
+    return '<h' + level + '>' + renderInlineMarkdown(lines[0].replace(/^#{1,4}\s+/, "")) + '</h' + level + '>';
+  }
+
+  return renderMixedMarkdownLines(lines);
+}
+
+function blockLines(block) {
+  return String(block || "").split(/\n/).filter((line) => line.trim().length);
 }
 
 function renderCodeBlock(code, lang) {
@@ -266,6 +287,117 @@ function parseMarkdownListItem(line) {
   }
 
   return null;
+}
+
+function isPureMarkdownListBlock(lines) {
+  return Array.isArray(lines) && lines.length > 0 && lines.every((line) => parseMarkdownListItem(line));
+}
+
+function renderLooseMarkdownList(blocks, start) {
+  const firstLines = blockLines(blocks[start]);
+  if (!isPureMarkdownListBlock(firstLines)) {
+    return null;
+  }
+
+  const firstItem = parseMarkdownListItem(firstLines[0]);
+  if (!firstItem) {
+    return null;
+  }
+
+  const entries = [];
+  let index = start;
+  let hasLooseContinuation = false;
+
+  while (index < blocks.length) {
+    const lines = blockLines(blocks[index]);
+    if (!isPureMarkdownListBlock(lines) || !isMatchingRootListBlock(lines, firstItem)) {
+      break;
+    }
+
+    appendLooseListEntries(entries, lines, firstItem);
+    index += 1;
+
+    const continuation = [];
+    let probe = index;
+    while (probe < blocks.length) {
+      const nextLines = blockLines(blocks[probe]);
+      if (isPureMarkdownListBlock(nextLines)) {
+        break;
+      }
+      if (!entries.length) {
+        break;
+      }
+
+      continuation.push(blocks[probe]);
+      probe += 1;
+    }
+
+    if (continuation.length) {
+      const nextLines = blockLines(blocks[probe]);
+      const continuesSameList = probe < blocks.length && isPureMarkdownListBlock(nextLines) && isMatchingRootListBlock(nextLines, firstItem);
+      if (!continuesSameList && !hasLooseContinuation) {
+        break;
+      }
+
+      entries[entries.length - 1].continuation.push(...continuation);
+      hasLooseContinuation = true;
+      index = probe;
+    }
+  }
+
+  if (!entries.length) {
+    return null;
+  }
+
+  return {
+    html: renderLooseListEntries(entries, firstItem.type),
+    next: index
+  };
+}
+
+function isMatchingRootListBlock(lines, rootItem) {
+  const first = parseMarkdownListItem(lines[0]);
+  return first && first.indent === rootItem.indent && first.type === rootItem.type;
+}
+
+function appendLooseListEntries(entries, lines, rootItem) {
+  const items = lines.map(parseMarkdownListItem).filter(Boolean);
+  let current = null;
+
+  for (const item of items) {
+    if (item.indent === rootItem.indent && item.type === rootItem.type) {
+      current = {
+        item,
+        children: [],
+        continuation: []
+      };
+      entries.push(current);
+      continue;
+    }
+
+    if (current) {
+      current.children.push(item);
+    }
+  }
+}
+
+function renderLooseListEntries(entries, type) {
+  const tag = type === "ol" ? "ol" : "ul";
+  const className = type === "task" ? ' class="taskList"' : "";
+  return "<" + tag + className + ">" + entries.map(renderLooseListEntry).join("") + "</" + tag + ">";
+}
+
+function renderLooseListEntry(entry) {
+  let content = renderMarkdownListItemContent(entry.item);
+  if (entry.children.length) {
+    const child = renderMarkdownListLevel(entry.children, 0, entry.children[0].indent, entry.children[0].type);
+    content += child.html;
+  }
+  if (entry.continuation.length) {
+    content += renderMarkdownText(entry.continuation.join("\n\n"));
+  }
+
+  return "<li>" + content + "</li>";
 }
 
 function renderMarkdownList(lines) {
