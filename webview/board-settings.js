@@ -56,10 +56,14 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
             <select id="agentRunner">
               <option value="codex"${runner === "codex" ? " selected" : ""}>Codex CLI</option>
               <option value="grok"${runner === "grok" ? " selected" : ""}>Grok Build CLI</option>
+              <option value="kilo"${runner === "kilo" ? " selected" : ""}>Kilo Code CLI</option>
             </select>
           </div>
           <div id="grokStatusCard" class="codexStatusCard grokStatusCard">
             ${renderGrokStatus()}
+          </div>
+          <div id="kiloStatusCard" class="codexStatusCard kiloStatusCard">
+            ${renderKiloStatus()}
           </div>
           <div class="fieldRow">
             <label for="modelProvider">Model provider</label>
@@ -251,6 +255,52 @@ function renderGrokStatus() {
   `;
 }
 
+function renderKiloStatus() {
+  const status = kiloStatus || {};
+  const overall = kiloStatusLoading ? "checking" : (status.overall || "checking");
+  const title = overall === "connected"
+    ? "Kilo CLI connected"
+    : overall === "needs-login"
+      ? "Kilo needs login"
+      : overall === "missing"
+        ? "Kilo CLI not ready"
+        : "Checking Kilo...";
+  const executable = status.executable ? status.executable : "kilo";
+  const version = status.version ? status.version : "";
+  const auth = status.authStatus ? status.authStatus : "";
+  const modelCount = Array.isArray(status.models) ? status.models.length : 0;
+  const issue = Array.isArray(status.issues) && status.issues.length ? status.issues[0] : "";
+  const installButton = overall === "missing"
+    ? '<button type="button" data-kilo-action="install">Install CLI</button>'
+    : "";
+  const loginButton = overall === "needs-login"
+    ? '<button type="button" data-kilo-action="login">Login</button>'
+    : "";
+  const refreshText = kiloStatusLoading ? "Checking..." : "Refresh";
+  return `
+    <div class="codexStatusHeader">
+      <div class="codexStatusTitle">
+        <span class="codexStatusDot" aria-hidden="true"></span>
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <button id="refreshKiloStatus" type="button" ${kiloStatusLoading ? "disabled" : ""}>${escapeHtml(refreshText)}</button>
+    </div>
+    <div class="codexStatusText">
+      <div><strong>Executable:</strong> ${escapeHtml(executable)}</div>
+      ${version ? '<div><strong>Version:</strong> ' + escapeHtml(version) + '</div>' : ""}
+      ${auth ? '<div><strong>Auth:</strong> ' + escapeHtml(auth) + '</div>' : ""}
+      <div><strong>Models:</strong> ${escapeHtml(modelCount ? String(modelCount) : "not loaded")}</div>
+      ${issue ? '<div>' + escapeHtml(issue) + '</div>' : ""}
+    </div>
+    <div class="codexStatusActions">
+      ${installButton}
+      ${loginButton}
+      <button type="button" data-kilo-action="models">Models</button>
+      <button type="button" data-kilo-action="version">Version</button>
+    </div>
+  `;
+}
+
 function renderModelProviderStatus(providerValue) {
   const provider = normalizeModelProvider(providerValue || state.boardSettings.modelProvider);
   const info = modelProviderInfo(provider);
@@ -388,10 +438,11 @@ function bindBoardSettingsDialog() {
   const importWorkspacePreset = document.getElementById("importWorkspacePreset");
   const codexStatusCard = document.getElementById("codexStatusCard");
   const grokStatusCard = document.getElementById("grokStatusCard");
+  const kiloStatusCard = document.getElementById("kiloStatusCard");
   const modelProviderStatusCard = document.getElementById("modelProviderStatusCard");
   const renderStatsCard = document.getElementById("renderStatsCard");
 
-  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !agentRunner || !modelProvider || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !grokStatusCard || !modelProviderStatusCard || !renderStatsCard) {
+  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !agentRunner || !modelProvider || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !grokStatusCard || !kiloStatusCard || !modelProviderStatusCard || !renderStatsCard) {
     return;
   }
 
@@ -414,6 +465,7 @@ function bindBoardSettingsDialog() {
     localWhisperStopGraceMs.value = draft.localWhisperStopGraceMs;
     refreshBoardSettingsWhisper();
     refreshBoardSettingsGrok();
+    refreshBoardSettingsKilo();
     refreshBoardSettingsModelProvider(draft.modelProvider);
     chatBackground.value = draft.chatBackground;
     chatBackgroundPicker.value = draft.chatBackground;
@@ -484,6 +536,8 @@ function bindBoardSettingsDialog() {
     updateModalControls();
     if (draft.agentRunner === "grok") {
       requestGrokStatus();
+    } else if (draft.agentRunner === "kilo") {
+      requestKiloStatus();
     }
   });
 
@@ -617,6 +671,22 @@ function bindBoardSettingsDialog() {
     }
   });
 
+  kiloStatusCard.addEventListener("click", (event) => {
+    const refreshButton = event.target.closest("#refreshKiloStatus");
+    if (refreshButton) {
+      requestKiloStatus();
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-kilo-action]");
+    if (actionButton) {
+      vscode.postMessage({
+        type: "openKiloActionTerminal",
+        action: actionButton.dataset.kiloAction || ""
+      });
+    }
+  });
+
   modelProviderStatusCard.addEventListener("click", (event) => {
     const refreshButton = event.target.closest("#refreshModelProviderStatus");
     if (refreshButton) {
@@ -693,6 +763,12 @@ function requestGrokStatus() {
   vscode.postMessage({ type: "requestGrokStatus" });
 }
 
+function requestKiloStatus() {
+  kiloStatusLoading = true;
+  refreshBoardSettingsKilo();
+  vscode.postMessage({ type: "requestKiloStatus" });
+}
+
 function requestModelProviderStatus(provider) {
   modelProviderStatusLoading = true;
   refreshBoardSettingsModelProvider(provider);
@@ -730,6 +806,21 @@ function refreshBoardSettingsGrok() {
   card.classList.toggle("missing", overall === "missing");
   card.classList.toggle("checking", overall === "checking");
   card.innerHTML = renderGrokStatus();
+}
+
+function refreshBoardSettingsKilo() {
+  const card = document.getElementById("kiloStatusCard");
+  if (!card) {
+    return;
+  }
+
+  const status = kiloStatus || {};
+  const overall = kiloStatusLoading ? "checking" : (status.overall || "checking");
+  card.classList.toggle("connected", overall === "connected");
+  card.classList.toggle("warning", overall === "needs-login" || overall === "checking");
+  card.classList.toggle("missing", overall === "missing");
+  card.classList.toggle("checking", overall === "checking");
+  card.innerHTML = renderKiloStatus();
 }
 
 function refreshBoardSettingsModelProvider(provider) {

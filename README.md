@@ -25,6 +25,7 @@ Codex Max is a local VS Code extension that opens a workspace tab with a compact
 
 - `codexMax.codexExecutable`: path or name of the Codex CLI executable.
 - `codexMax.grokExecutable`: path or name of the Grok Build CLI executable.
+- `codexMax.kiloExecutable`: path or name of the Kilo Code CLI executable.
 - `codexMax.defaultSandbox`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `codexMax.model`: optional model override.
 - `codexMax.maxVisibleChats`: soft visible-card target before the UI warns you.
@@ -47,13 +48,17 @@ Board settings also control chat card height, chat background color, send shortc
 
 ## Agent Runners
 
-Codex Max normally runs chats through Codex CLI. Board Settings also include `Agent runner`, where you can switch a workspace to `Grok Build CLI`.
+Codex Max normally runs chats through Codex CLI. Board Settings also include `Agent runner`, where you can switch a workspace to `Grok Build CLI` or `Kilo Code CLI`.
 
 - `Codex CLI`: uses `codex exec --json` and the existing Codex/OpenAI login.
 - `Grok Build CLI`: uses xAI Grok Build headless mode with `grok -p ... --output-format streaming-json`.
+- `Kilo Code CLI`: uses Kilo headless mode with `kilo run --format json --auto --dir <project>`.
 - Grok sessions are stored with a `grok-...` session id so they do not collide with Codex thread ids.
+- Kilo sessions are stored with a `ses_...` session id and reuse Kilo's own model/provider routing.
 - The Grok status card can open install, login, inspect, and version commands in a VS Code terminal.
+- The Kilo status card can open install, login, model list, and version commands in a VS Code terminal. Codex Max also auto-detects the bundled Kilo Code VS Code extension binary when `kilo` is not on PATH.
 - Install Grok Build with the official xAI installer, then run `grok login` or expose `XAI_API_KEY` to VS Code.
+- Install Kilo CLI with `npm install -g @kilocode/cli` or install the Kilo Code VS Code extension, then run `kilo auth login`. Available models are loaded from `kilo models` and shown in the composer model dropdown while Kilo is selected.
 
 ## Workspaces
 

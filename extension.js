@@ -8,6 +8,7 @@ const {
   platformDisplayName,
   resolveCodexExecutable,
   resolveGrokExecutable,
+  resolveKiloExecutable,
   resolveWhisperRuntimeExecutable
 } = require("./lib/platform");
 const { downloadFile, extractRuntimeArchive, fileExists } = require("./lib/file-utils");
@@ -17,6 +18,7 @@ const { listCaptureDevices, runWhisperCli } = require("./lib/whisper-utils");
 const { WhisperManager } = require("./lib/whisper-manager");
 const { CodexRunner } = require("./lib/codex-runner");
 const { GrokRunner, isGrokSessionId } = require("./lib/grok-runner");
+const { KiloRunner, isKiloSessionId } = require("./lib/kilo-runner");
 const { DEFAULT_WHISPER_LIVE_STOP_GRACE_MS, LOCAL_WHISPER_MODELS, WHISPER_RUNTIME } = require("./lib/whisper-catalog");
 const {
   DEFAULT_BOARD_SETTINGS,
@@ -56,6 +58,12 @@ function activate(context) {
     normalizeSettings,
     defaultChatSettings: DEFAULT_CHAT_SETTINGS
   });
+  const kiloRunner = new KiloRunner({
+    getWorkspacePath,
+    getConfig: () => vscode.workspace.getConfiguration("codexMax"),
+    normalizeSettings,
+    defaultChatSettings: DEFAULT_CHAT_SETTINGS
+  });
   const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusItem.text = "$(comment-discussion) Codex Max";
   statusItem.tooltip = "Open Codex Max Chat Board";
@@ -66,14 +74,14 @@ function activate(context) {
     statusItem,
     vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, {
       async deserializeWebviewPanel(panel) {
-        boardPanel = new ChatBoardPanel(context, panel, runner, grokRunner);
+        boardPanel = new ChatBoardPanel(context, panel, runner, grokRunner, kiloRunner);
       }
     }),
     vscode.commands.registerCommand("codexMax.openChatBoard", () => {
-      boardPanel = ChatBoardPanel.createOrShow(context, runner, grokRunner);
+      boardPanel = ChatBoardPanel.createOrShow(context, runner, grokRunner, kiloRunner);
     }),
     vscode.commands.registerCommand("codexMax.addChat", async () => {
-      boardPanel = ChatBoardPanel.createOrShow(context, runner, grokRunner);
+      boardPanel = ChatBoardPanel.createOrShow(context, runner, grokRunner, kiloRunner);
       boardPanel.post({ type: "addChat" });
     })
   );
@@ -82,7 +90,7 @@ function activate(context) {
 function deactivate() {}
 
 class ChatBoardPanel {
-  static createOrShow(context, runner, grokRunner) {
+  static createOrShow(context, runner, grokRunner, kiloRunner) {
     if (boardPanel) {
       boardPanel.refresh();
       boardPanel.panel.reveal(vscode.ViewColumn.Active);
@@ -102,15 +110,16 @@ class ChatBoardPanel {
       }
     );
 
-    boardPanel = new ChatBoardPanel(context, panel, runner, grokRunner);
+    boardPanel = new ChatBoardPanel(context, panel, runner, grokRunner, kiloRunner);
     return boardPanel;
   }
 
-  constructor(context, panel, runner, grokRunner) {
+  constructor(context, panel, runner, grokRunner, kiloRunner) {
     this.context = context;
     this.panel = panel;
     this.runner = runner;
     this.grokRunner = grokRunner;
+    this.kiloRunner = kiloRunner;
     this.disposables = [];
     this.rateLimitsRefreshInFlight = null;
     this.rateLimitsRefreshTimer = null;
@@ -209,9 +218,11 @@ class ChatBoardPanel {
 
     if (message.type === "sendPrompt") {
       const agentRunner = normalizeAgentRunner(message.boardSettings && message.boardSettings.agentRunner);
-      const sessionId = agentRunner === "codex" && isGrokSessionId(message.sessionId) ? null : message.sessionId;
+      const sessionId = agentRunner === "codex" && (isGrokSessionId(message.sessionId) || isKiloSessionId(message.sessionId)) ? null : message.sessionId;
       if (agentRunner === "grok") {
         this.grokRunner.run(message.chatId, message.prompt, sessionId, message.settings, this, message.projectPath, message.boardSettings);
+      } else if (agentRunner === "kilo") {
+        this.kiloRunner.run(message.chatId, message.prompt, sessionId, message.settings, this, message.projectPath, message.boardSettings);
       } else {
         this.runner.run(message.chatId, message.prompt, sessionId, message.settings, this, message.projectPath, message.boardSettings);
       }
@@ -270,6 +281,11 @@ class ChatBoardPanel {
       return;
     }
 
+    if (message.type === "requestKiloStatus") {
+      await this.postKiloStatus();
+      return;
+    }
+
     if (message.type === "requestModelProviderStatus") {
       await this.postModelProviderStatus(message.provider);
       return;
@@ -282,6 +298,11 @@ class ChatBoardPanel {
 
     if (message.type === "openGrokActionTerminal") {
       this.openGrokActionTerminal(message.action);
+      return;
+    }
+
+    if (message.type === "openKiloActionTerminal") {
+      this.openKiloActionTerminal(message.action);
       return;
     }
 
@@ -344,6 +365,7 @@ class ChatBoardPanel {
     if (message.type === "stopChat") {
       this.runner.stop(message.chatId);
       this.grokRunner.stop(message.chatId);
+      this.kiloRunner.stop(message.chatId);
       return;
     }
 
@@ -702,6 +724,60 @@ class ChatBoardPanel {
     });
   }
 
+  async postKiloStatus() {
+    const cfg = vscode.workspace.getConfiguration("codexMax");
+    const configured = cfg.get("kiloExecutable", "kilo") || "kilo";
+    const executable = resolveKiloExecutable(configured);
+    const status = {
+      executable: executable.command,
+      configured,
+      cliFound: false,
+      cliOk: false,
+      version: "",
+      authOk: false,
+      authStatus: "",
+      models: [],
+      overall: "checking",
+      issues: [],
+      checkedAt: Date.now()
+    };
+
+    try {
+      const versionResult = await runCodexCommand(executable, ["--version"], 5000);
+      status.cliFound = true;
+      status.cliOk = versionResult.code === 0;
+      status.version = stripAnsi(versionResult.stdout || versionResult.stderr).trim();
+      if (!status.cliOk) {
+        status.issues.push(versionResult.stderr || versionResult.stdout || "Kilo CLI did not return a successful version response.");
+      }
+    } catch (error) {
+      status.issues.push(error.message || String(error));
+    }
+
+    if (status.cliOk) {
+      try {
+        const modelsResult = await runCodexCommand(executable, ["models"], 12000);
+        const modelsOutput = stripAnsi([modelsResult.stdout, modelsResult.stderr].filter(Boolean).join("\n")).trim();
+        status.models = parseKiloModels(modelsOutput);
+        status.authOk = modelsResult.code === 0 && status.models.length > 0;
+        status.authStatus = status.authOk
+          ? `${status.models.length} models available`
+          : firstNonEmptyLine(modelsOutput);
+        if (!status.authOk) {
+          status.issues.push(modelsOutput || "Kilo CLI is installed, but no available models were returned.");
+        }
+      } catch (error) {
+        status.issues.push(error.message || String(error));
+      }
+    }
+
+    status.overall = status.cliOk ? (status.authOk ? "connected" : "needs-login") : "missing";
+    this.post({
+      type: "kiloStatus",
+      status
+    });
+  }
+
   async postModelProviderStatus(provider) {
     const info = modelProviderInfo(provider);
     const hasKey = info.envKey ? Boolean(process.env[info.envKey]) : true;
@@ -767,6 +843,29 @@ class ChatBoardPanel {
     }
     if (action === "inspect") {
       terminal.sendText(`${quoteShellArg(executable.command)} inspect`);
+      return;
+    }
+    if (action === "version") {
+      terminal.sendText(`${quoteShellArg(executable.command)} --version`);
+    }
+  }
+
+  openKiloActionTerminal(action) {
+    const cfg = vscode.workspace.getConfiguration("codexMax");
+    const executable = resolveKiloExecutable(cfg.get("kiloExecutable", "kilo") || "kilo");
+    const terminal = vscode.window.createTerminal({ name: "Codex Max Kilo setup" });
+    terminal.show();
+
+    if (action === "install") {
+      terminal.sendText("npm install -g @kilocode/cli");
+      return;
+    }
+    if (action === "login") {
+      terminal.sendText(`${quoteShellArg(executable.command)} auth login`);
+      return;
+    }
+    if (action === "models") {
+      terminal.sendText(`${quoteShellArg(executable.command)} models`);
       return;
     }
     if (action === "version") {
@@ -1295,6 +1394,7 @@ class ChatBoardPanel {
     this.stopAllWhisperLive();
     this.runner.stopAll();
     this.grokRunner.stopAll();
+    this.kiloRunner.stopAll();
 
     while (this.disposables.length) {
       const disposable = this.disposables.pop();
@@ -1424,11 +1524,25 @@ function modelProviderInfo(provider) {
 
 function normalizeAgentRunner(value) {
   const runner = String(value || "codex").toLowerCase();
-  return runner === "grok" ? "grok" : "codex";
+  return ["codex", "grok", "kilo"].includes(runner) ? runner : "codex";
 }
 
 function firstNonEmptyLine(value) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+}
+
+function parseKiloModels(value) {
+  const seen = new Set();
+  const models = [];
+  for (const line of String(value || "").split(/\r?\n/)) {
+    const model = line.trim();
+    if (!/^kilo\//i.test(model) || seen.has(model)) {
+      continue;
+    }
+    seen.add(model);
+    models.push(model);
+  }
+  return models;
 }
 
 function quotePowerShellString(value) {

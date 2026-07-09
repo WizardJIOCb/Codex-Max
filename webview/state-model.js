@@ -367,7 +367,7 @@ function normalizeModelProvider(value) {
 
 function normalizeAgentRunner(value) {
   const runner = String(value || "codex").toLowerCase();
-  return ["codex", "grok"].includes(runner) ? runner : "codex";
+  return ["codex", "grok", "kilo"].includes(runner) ? runner : "codex";
 }
 
 function normalizeHexColor(value, fallback) {

@@ -17,6 +17,7 @@ window.addEventListener("message", (event) => {
       requestRateLimitsOnce();
       requestCodexStatus();
       requestGrokStatus();
+      requestKiloStatus();
       requestModelProviderStatus(state.boardSettings.modelProvider);
     } catch (error) {
       showFatal(error);
@@ -173,6 +174,14 @@ window.addEventListener("message", (event) => {
     grokStatusLoading = false;
     grokStatus = message.status || null;
     refreshBoardSettingsGrok();
+    return;
+  }
+
+  if (message.type === "kiloStatus") {
+    kiloStatusLoading = false;
+    kiloStatus = message.status || null;
+    refreshBoardSettingsKilo();
+    refreshBoardGrid({ preserveBoardScroll: true });
     return;
   }
 

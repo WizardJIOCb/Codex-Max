@@ -62,6 +62,15 @@ function modelChoices(selected) {
     }
     return grokModels;
   }
+  if (runner === "kilo") {
+    const models = Array.isArray(kiloStatus && kiloStatus.models) && kiloStatus.models.length
+      ? kiloStatus.models.map((model) => [model, shortKiloModelLabel(model)])
+      : [["kilo/kilo-auto/free", "kilo-auto/free"]];
+    if (selected && !models.some((item) => item[0] === selected) && /^kilo\//i.test(selected)) {
+      models.unshift([selected, shortKiloModelLabel(selected)]);
+    }
+    return models;
+  }
 
   const models = [
     ["gpt-5.5", "5.5"],
@@ -82,4 +91,8 @@ function modelChoices(selected) {
   }
 
   return models;
+}
+
+function shortKiloModelLabel(model) {
+  return String(model || "").replace(/^kilo\//i, "");
 }
