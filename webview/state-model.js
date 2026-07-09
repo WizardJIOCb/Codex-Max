@@ -297,6 +297,12 @@ function normalizeModelId(value) {
   const model = typeof value === "string" ? value.trim() : "";
   const aliases = {
     "5.5": "gpt-5.5",
+    "5.6 Sol": "gpt-5.6-sol",
+    "5.6 Terra": "gpt-5.6-terra",
+    "5.6 Luna": "gpt-5.6-luna",
+    "5.6 sol": "gpt-5.6-sol",
+    "5.6 terra": "gpt-5.6-terra",
+    "5.6 luna": "gpt-5.6-luna",
     "5.4": "gpt-5.4",
     "5.3": "gpt-5.3"
   };

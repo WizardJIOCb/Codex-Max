@@ -74,6 +74,9 @@ function modelChoices(selected) {
 
   const models = [
     ["gpt-5.5", "5.5"],
+    ["gpt-5.6-sol", "5.6 Sol"],
+    ["gpt-5.6-terra", "5.6 Terra"],
+    ["gpt-5.6-luna", "5.6 Luna"],
     ["gpt-5.4", "5.4"],
     ["gpt-5.3", "5.3"],
     ["o3", "o3"],
