@@ -1053,6 +1053,7 @@ select {
 }
 
 .message.error {
+  padding: 2px 12px;
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger), transparent 50%);
   background: color-mix(in srgb, var(--danger), var(--bg) 92%);
