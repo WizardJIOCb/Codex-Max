@@ -423,6 +423,9 @@ function contextWindowForModel(model) {
   if (normalized === "o4-mini") {
     return 128000;
   }
+  if (normalized === "grok-4.5" || normalized === "x-ai/grok-4.5") {
+    return 500000;
+  }
 
   return 128000;
 }

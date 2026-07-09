@@ -1,7 +1,8 @@
 // Board settings dialog. Loaded before main.js.
-function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
+function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, modelProvider, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
   const isHeightAuto = !maxChatHeight;
   const heightValue = maxChatHeight || 720;
+  const provider = normalizeModelProvider(modelProvider);
   return `
     <div class="modalBackdrop" id="boardSettingsModal" hidden>
       <section class="modal boardSettingsModal" role="dialog" aria-modal="true" aria-labelledby="boardSettingsTitle">
@@ -48,6 +49,17 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
           </div>
           <div id="codexStatusCard" class="codexStatusCard">
             ${renderCodexStatus()}
+          </div>
+          <div class="fieldRow">
+            <label for="modelProvider">Model provider</label>
+            <select id="modelProvider">
+              <option value="codex"${provider === "codex" ? " selected" : ""}>Codex / OpenAI</option>
+              <option value="xai"${provider === "xai" ? " selected" : ""}>xAI</option>
+              <option value="openrouter"${provider === "openrouter" ? " selected" : ""}>OpenRouter</option>
+            </select>
+          </div>
+          <div id="modelProviderStatusCard" class="codexStatusCard modelProviderStatusCard">
+            ${renderModelProviderStatus(provider)}
           </div>
           <div class="fieldRow">
             <label for="voiceShortcut">Voice shortcut</label>
@@ -184,6 +196,71 @@ function renderCodexStatus() {
   `;
 }
 
+function renderModelProviderStatus(providerValue) {
+  const provider = normalizeModelProvider(providerValue || state.boardSettings.modelProvider);
+  const info = modelProviderInfo(provider);
+  const status = modelProviderStatus && modelProviderStatus.provider === provider ? modelProviderStatus : {};
+  const overall = modelProviderStatusLoading ? "checking" : (status.overall || (provider === "codex" ? "connected" : "checking"));
+  const title = provider === "codex"
+    ? "Codex/OpenAI provider"
+    : overall === "connected"
+      ? info.label + " connected"
+      : overall === "missing-key"
+        ? info.label + " needs API key"
+        : "Checking " + info.label + "...";
+  const issue = status.issue || (provider === "codex"
+    ? "Uses current Codex login and account limits."
+    : "Codex CLI will read " + info.envKey + " from the VS Code environment.");
+  const refreshText = modelProviderStatusLoading ? "Checking..." : "Refresh";
+  const setupButton = provider === "codex" ? "" : '<button type="button" data-provider-action="setup">Setup key</button>';
+  const docsButton = provider === "codex" ? "" : '<button type="button" data-provider-action="docs">Docs</button>';
+  return `
+    <div class="codexStatusHeader">
+      <div class="codexStatusTitle">
+        <span class="codexStatusDot" aria-hidden="true"></span>
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <button id="refreshModelProviderStatus" type="button" ${modelProviderStatusLoading ? "disabled" : ""}>${escapeHtml(refreshText)}</button>
+    </div>
+    <div class="codexStatusText">
+      <div><strong>Provider:</strong> ${escapeHtml(info.label)}</div>
+      ${info.baseUrl ? '<div><strong>Base URL:</strong> ' + escapeHtml(info.baseUrl) + '</div>' : ""}
+      ${info.envKey ? '<div><strong>Env key:</strong> ' + escapeHtml(info.envKey) + '</div>' : ""}
+      <div>${escapeHtml(issue)}</div>
+    </div>
+    <div class="codexStatusActions">
+      ${setupButton}
+      ${docsButton}
+    </div>
+  `;
+}
+
+function modelProviderInfo(providerValue) {
+  const provider = normalizeModelProvider(providerValue);
+  if (provider === "xai") {
+    return {
+      id: "xai",
+      label: "xAI",
+      baseUrl: "https://api.x.ai/v1",
+      envKey: "XAI_API_KEY"
+    };
+  }
+  if (provider === "openrouter") {
+    return {
+      id: "openrouter",
+      label: "OpenRouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      envKey: "OPENROUTER_API_KEY"
+    };
+  }
+  return {
+    id: "codex",
+    label: "Codex/OpenAI",
+    baseUrl: "",
+    envKey: ""
+  };
+}
+
 function renderRenderStats() {
   const stats = renderStats || createRenderStats();
   const elapsed = Math.max(0, Date.now() - Number(stats.startedAt || Date.now()));
@@ -237,6 +314,7 @@ function bindBoardSettingsDialog() {
   const sendWithCtrlEnter = document.getElementById("sendWithCtrlEnter");
   const autoScrollMessages = document.getElementById("autoScrollMessages");
   const animateMessages = document.getElementById("animateMessages");
+  const modelProvider = document.getElementById("modelProvider");
   const voiceShortcut = document.getElementById("voiceShortcut");
   const speechToText = document.getElementById("speechToText");
   const localWhisperModel = document.getElementById("localWhisperModel");
@@ -253,9 +331,10 @@ function bindBoardSettingsDialog() {
   const exportWorkspacePreset = document.getElementById("exportWorkspacePreset");
   const importWorkspacePreset = document.getElementById("importWorkspacePreset");
   const codexStatusCard = document.getElementById("codexStatusCard");
+  const modelProviderStatusCard = document.getElementById("modelProviderStatusCard");
   const renderStatsCard = document.getElementById("renderStatsCard");
 
-  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !renderStatsCard) {
+  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !modelProvider || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !modelProviderStatusCard || !renderStatsCard) {
     return;
   }
 
@@ -269,12 +348,14 @@ function bindBoardSettingsDialog() {
     sendWithCtrlEnter.checked = draft.sendWithCtrlEnter;
     autoScrollMessages.checked = draft.autoScroll;
     animateMessages.checked = draft.animateMessages;
+    modelProvider.value = draft.modelProvider;
     voiceShortcut.value = draft.voiceShortcut;
     speechToText.value = draft.speechToText;
     localWhisperModel.value = draft.localWhisperModel;
     localWhisperCaptureId.value = draft.localWhisperCaptureId;
     localWhisperStopGraceMs.value = draft.localWhisperStopGraceMs;
     refreshBoardSettingsWhisper();
+    refreshBoardSettingsModelProvider(draft.modelProvider);
     chatBackground.value = draft.chatBackground;
     chatBackgroundPicker.value = draft.chatBackground;
 
@@ -337,6 +418,13 @@ function bindBoardSettingsDialog() {
   animateMessages.addEventListener("change", (event) => {
     draft.animateMessages = event.target.checked;
     updateModalControls();
+  });
+
+  modelProvider.addEventListener("change", (event) => {
+    draft.modelProvider = normalizeModelProvider(event.target.value);
+    modelProviderStatus = null;
+    updateModalControls();
+    requestModelProviderStatus(draft.modelProvider);
   });
 
   voiceShortcut.addEventListener("change", (event) => {
@@ -446,6 +534,23 @@ function bindBoardSettingsDialog() {
     }
   });
 
+  modelProviderStatusCard.addEventListener("click", (event) => {
+    const refreshButton = event.target.closest("#refreshModelProviderStatus");
+    if (refreshButton) {
+      requestModelProviderStatus(draft.modelProvider);
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-provider-action]");
+    if (actionButton) {
+      vscode.postMessage({
+        type: "openModelProviderActionTerminal",
+        provider: draft.modelProvider,
+        action: actionButton.dataset.providerAction || ""
+      });
+    }
+  });
+
   for (const button of modal.querySelectorAll("[data-columns]")) {
     button.addEventListener("click", (event) => {
       draft.chatsPerRow = clampInt(event.currentTarget.dataset.columns, 1, 12);
@@ -468,6 +573,7 @@ function bindBoardSettingsDialog() {
     draft.sendWithCtrlEnter = sendWithCtrlEnter.checked;
     draft.autoScroll = autoScrollMessages.checked;
     draft.animateMessages = animateMessages.checked;
+    draft.modelProvider = normalizeModelProvider(modelProvider.value);
     draft.voiceShortcut = normalizeVoiceShortcut(voiceShortcut.value);
     draft.speechToText = normalizeSpeechToTextEngine(speechToText.value);
     draft.localWhisperModel = normalizeLocalWhisperModel(localWhisperModel.value);
@@ -497,6 +603,15 @@ function requestCodexStatus() {
   vscode.postMessage({ type: "requestCodexStatus" });
 }
 
+function requestModelProviderStatus(provider) {
+  modelProviderStatusLoading = true;
+  refreshBoardSettingsModelProvider(provider);
+  vscode.postMessage({
+    type: "requestModelProviderStatus",
+    provider: normalizeModelProvider(provider || state.boardSettings.modelProvider)
+  });
+}
+
 function refreshBoardSettingsCodex() {
   const card = document.getElementById("codexStatusCard");
   if (!card) {
@@ -510,6 +625,22 @@ function refreshBoardSettingsCodex() {
   card.classList.toggle("missing", overall === "missing");
   card.classList.toggle("checking", overall === "checking");
   card.innerHTML = renderCodexStatus();
+}
+
+function refreshBoardSettingsModelProvider(provider) {
+  const card = document.getElementById("modelProviderStatusCard");
+  if (!card) {
+    return;
+  }
+
+  const selectedProvider = normalizeModelProvider(provider || state.boardSettings.modelProvider);
+  const status = modelProviderStatus && modelProviderStatus.provider === selectedProvider ? modelProviderStatus : {};
+  const overall = modelProviderStatusLoading ? "checking" : (status.overall || (selectedProvider === "codex" ? "connected" : "checking"));
+  card.classList.toggle("connected", overall === "connected");
+  card.classList.toggle("warning", overall === "checking");
+  card.classList.toggle("missing", overall === "missing-key");
+  card.classList.toggle("checking", overall === "checking");
+  card.innerHTML = renderModelProviderStatus(selectedProvider);
 }
 
 function refreshBoardSettingsWhisper() {

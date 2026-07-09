@@ -39,6 +39,7 @@ function modelDisplayLabel(value) {
 }
 
 function modelChoices(selected) {
+  const provider = normalizeModelProvider(state && state.boardSettings ? state.boardSettings.modelProvider : "codex");
   const models = [
     ["gpt-5.5", "5.5"],
     ["gpt-5.4", "5.4"],
@@ -46,6 +47,12 @@ function modelChoices(selected) {
     ["o3", "o3"],
     ["o4-mini", "o4-mini"]
   ];
+
+  if (provider === "xai") {
+    models.push(["grok-4.5", "grok-4.5"]);
+  } else if (provider === "openrouter") {
+    models.push(["x-ai/grok-4.5", "grok-4.5"]);
+  }
 
   if (selected && !models.some((item) => item[0] === selected)) {
     models.push([selected, selected]);

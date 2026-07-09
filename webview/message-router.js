@@ -16,6 +16,7 @@ window.addEventListener("message", (event) => {
       persist();
       requestRateLimitsOnce();
       requestCodexStatus();
+      requestModelProviderStatus(state.boardSettings.modelProvider);
     } catch (error) {
       showFatal(error);
     }
@@ -164,6 +165,13 @@ window.addEventListener("message", (event) => {
     codexStatusLoading = false;
     codexStatus = message.status || null;
     refreshBoardSettingsCodex();
+    return;
+  }
+
+  if (message.type === "modelProviderStatus") {
+    modelProviderStatusLoading = false;
+    modelProviderStatus = message.status || null;
+    refreshBoardSettingsModelProvider(modelProviderStatus && modelProviderStatus.provider);
     return;
   }
 

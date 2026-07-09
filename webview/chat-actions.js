@@ -191,6 +191,7 @@ function sendPrompt(chatId) {
     prompt: promptForCodex,
     sessionId: chat.sessionId,
     settings: chat.settings,
+    boardSettings: state.boardSettings,
     projectPath: chat.projectPath || currentWorkspacePath() || "",
     state
   });

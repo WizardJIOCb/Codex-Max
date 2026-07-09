@@ -14,6 +14,7 @@ let state = {
     sendWithCtrlEnter: false,
     autoScroll: true,
     animateMessages: true,
+    modelProvider: "codex",
     voiceShortcut: "alt-v",
     speechToText: "browser",
     localWhisperModel: "small-q5_1",
@@ -75,6 +76,8 @@ let whisperDownloadState = null;
 let whisperPrewarmState = null;
 let codexStatus = null;
 let codexStatusLoading = false;
+let modelProviderStatus = null;
+let modelProviderStatusLoading = false;
 let microphonePermissionNotice = "";
 let renderStats = createRenderStats();
 

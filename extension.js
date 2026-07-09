@@ -199,7 +199,7 @@ class ChatBoardPanel {
     }
 
     if (message.type === "sendPrompt") {
-      this.runner.run(message.chatId, message.prompt, message.sessionId, message.settings, this, message.projectPath);
+      this.runner.run(message.chatId, message.prompt, message.sessionId, message.settings, this, message.projectPath, message.boardSettings);
       this.saveState(message.state).catch((error) => {
         this.post({
           type: "chatEvent",
@@ -250,8 +250,18 @@ class ChatBoardPanel {
       return;
     }
 
+    if (message.type === "requestModelProviderStatus") {
+      await this.postModelProviderStatus(message.provider);
+      return;
+    }
+
     if (message.type === "openCodexActionTerminal") {
       this.openCodexActionTerminal(message.action);
+      return;
+    }
+
+    if (message.type === "openModelProviderActionTerminal") {
+      this.openModelProviderActionTerminal(message.provider, message.action);
       return;
     }
 
@@ -606,6 +616,28 @@ class ChatBoardPanel {
     });
   }
 
+  async postModelProviderStatus(provider) {
+    const info = modelProviderInfo(provider);
+    const hasKey = info.envKey ? Boolean(process.env[info.envKey]) : true;
+    const status = {
+      provider: info.id,
+      label: info.label,
+      baseUrl: info.baseUrl,
+      envKey: info.envKey,
+      hasKey,
+      overall: info.id === "codex" || hasKey ? "connected" : "missing-key",
+      issue: info.id === "codex"
+        ? "Uses the current Codex/OpenAI authorization."
+        : (hasKey ? `${info.envKey} is available to VS Code.` : `${info.envKey} is not available in the VS Code environment.`),
+      checkedAt: Date.now()
+    };
+
+    this.post({
+      type: "modelProviderStatus",
+      status
+    });
+  }
+
   openCodexActionTerminal(action) {
     const cfg = vscode.workspace.getConfiguration("codexMax");
     const executable = resolveCodexExecutable(cfg.get("codexExecutable", "codex") || "codex");
@@ -627,6 +659,27 @@ class ChatBoardPanel {
     if (action === "version") {
       terminal.sendText(`${quoteShellArg(executable.command)} --version`);
     }
+  }
+
+  openModelProviderActionTerminal(provider, action) {
+    const info = modelProviderInfo(provider);
+    const terminal = vscode.window.createTerminal({ name: "Codex Max model provider" });
+    terminal.show();
+
+    if (info.id === "codex") {
+      terminal.sendText("codex login status");
+      return;
+    }
+
+    if (action === "docs") {
+      terminal.sendText(`Write-Host ${quotePowerShellString(info.docs)}`);
+      return;
+    }
+
+    terminal.sendText(`Write-Host ${quotePowerShellString("Set your API key for " + info.label + " and restart VS Code so extensions inherit it:")}`);
+    terminal.sendText(`Write-Host ${quotePowerShellString("setx " + info.envKey + " \"YOUR_API_KEY\"")}`);
+    terminal.sendText(`Write-Host ${quotePowerShellString("Current session check:")}`);
+    terminal.sendText(`if ($env:${info.envKey}) { Write-Host "${info.envKey} is set for this terminal." } else { Write-Host "${info.envKey} is not set in this terminal." }`);
   }
 
   whisperRoot() {
@@ -1223,6 +1276,40 @@ function formatBytesForHost(value) {
   }
 
   return `${bytes} B`;
+}
+
+function modelProviderInfo(provider) {
+  const id = String(provider || "codex").toLowerCase();
+  if (id === "xai") {
+    return {
+      id: "xai",
+      label: "xAI",
+      baseUrl: "https://api.x.ai/v1",
+      envKey: "XAI_API_KEY",
+      docs: "https://docs.x.ai/"
+    };
+  }
+  if (id === "openrouter") {
+    return {
+      id: "openrouter",
+      label: "OpenRouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      envKey: "OPENROUTER_API_KEY",
+      docs: "https://openrouter.ai/docs/cookbook/coding-agents/codex-cli"
+    };
+  }
+
+  return {
+    id: "codex",
+    label: "Codex/OpenAI",
+    baseUrl: "",
+    envKey: "",
+    docs: "https://developers.openai.com/codex"
+  };
+}
+
+function quotePowerShellString(value) {
+  return "'" + String(value || "").replace(/'/g, "''") + "'";
 }
 
 function getWorkspacePath() {
