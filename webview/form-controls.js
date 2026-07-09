@@ -22,24 +22,44 @@ function selectedLabel(selectedValue, choices) {
 }
 
 function modelSelectChip(selectedValue, disabled) {
-  const selected = normalizeModelId(selectedValue) || "gpt-5.5";
+  let selected = normalizeModelId(selectedValue) || "gpt-5.5";
   const choices = modelChoices(selected);
+  if (!choices.some((item) => item[0] === selected)) {
+    selected = choices[0] ? choices[0][0] : selected;
+  }
   return selectChip("model", "Model", selected, choices, disabled);
 }
 
 function modelOptions(selectedValue) {
-  const selected = normalizeModelId(selectedValue) || "gpt-5.5";
-  return modelChoices(selected).map((item) => option(item[0], item[1], selected)).join("");
+  let selected = normalizeModelId(selectedValue) || "gpt-5.5";
+  const choices = modelChoices(selected);
+  if (!choices.some((item) => item[0] === selected)) {
+    selected = choices[0] ? choices[0][0] : selected;
+  }
+  return choices.map((item) => option(item[0], item[1], selected)).join("");
 }
 
 function modelDisplayLabel(value) {
-  const selected = normalizeModelId(value) || "gpt-5.5";
-  const match = modelChoices(selected).find((item) => item[0] === selected);
+  let selected = normalizeModelId(value) || "gpt-5.5";
+  const choices = modelChoices(selected);
+  if (!choices.some((item) => item[0] === selected)) {
+    selected = choices[0] ? choices[0][0] : selected;
+  }
+  const match = choices.find((item) => item[0] === selected);
   return match ? match[1] : selected;
 }
 
 function modelChoices(selected) {
+  const runner = normalizeAgentRunner(state && state.boardSettings ? state.boardSettings.agentRunner : "codex");
   const provider = normalizeModelProvider(state && state.boardSettings ? state.boardSettings.modelProvider : "codex");
+  if (runner === "grok") {
+    const grokModels = [["grok-4.5", "grok-4.5"]];
+    if (selected && !grokModels.some((item) => item[0] === selected) && /^grok-/i.test(selected)) {
+      grokModels.push([selected, selected]);
+    }
+    return grokModels;
+  }
+
   const models = [
     ["gpt-5.5", "5.5"],
     ["gpt-5.4", "5.4"],

@@ -1,7 +1,8 @@
 // Board settings dialog. Loaded before main.js.
-function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, modelProvider, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
+function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, agentRunner, modelProvider, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs) {
   const isHeightAuto = !maxChatHeight;
   const heightValue = maxChatHeight || 720;
+  const runner = normalizeAgentRunner(agentRunner);
   const provider = normalizeModelProvider(modelProvider);
   return `
     <div class="modalBackdrop" id="boardSettingsModal" hidden>
@@ -49,6 +50,16 @@ function renderBoardSettingsDialog(columns, rows, maxChatHeight, sendWithCtrlEnt
           </div>
           <div id="codexStatusCard" class="codexStatusCard">
             ${renderCodexStatus()}
+          </div>
+          <div class="fieldRow">
+            <label for="agentRunner">Agent runner</label>
+            <select id="agentRunner">
+              <option value="codex"${runner === "codex" ? " selected" : ""}>Codex CLI</option>
+              <option value="grok"${runner === "grok" ? " selected" : ""}>Grok Build CLI</option>
+            </select>
+          </div>
+          <div id="grokStatusCard" class="codexStatusCard grokStatusCard">
+            ${renderGrokStatus()}
           </div>
           <div class="fieldRow">
             <label for="modelProvider">Model provider</label>
@@ -196,6 +207,50 @@ function renderCodexStatus() {
   `;
 }
 
+function renderGrokStatus() {
+  const status = grokStatus || {};
+  const overall = grokStatusLoading ? "checking" : (status.overall || "checking");
+  const title = overall === "connected"
+    ? "Grok CLI connected"
+    : overall === "needs-login"
+      ? "Grok needs login"
+      : overall === "missing"
+        ? "Grok CLI not ready"
+        : "Checking Grok...";
+  const executable = status.executable ? status.executable : "grok";
+  const version = status.version ? status.version : "";
+  const auth = status.authStatus ? status.authStatus : "";
+  const issue = Array.isArray(status.issues) && status.issues.length ? status.issues[0] : "";
+  const installButton = overall === "missing"
+    ? '<button type="button" data-grok-action="install">Install CLI</button>'
+    : "";
+  const loginButton = overall === "needs-login"
+    ? '<button type="button" data-grok-action="login">Login</button>'
+    : "";
+  const refreshText = grokStatusLoading ? "Checking..." : "Refresh";
+  return `
+    <div class="codexStatusHeader">
+      <div class="codexStatusTitle">
+        <span class="codexStatusDot" aria-hidden="true"></span>
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <button id="refreshGrokStatus" type="button" ${grokStatusLoading ? "disabled" : ""}>${escapeHtml(refreshText)}</button>
+    </div>
+    <div class="codexStatusText">
+      <div><strong>Executable:</strong> ${escapeHtml(executable)}</div>
+      ${version ? '<div><strong>Version:</strong> ' + escapeHtml(version) + '</div>' : ""}
+      ${auth ? '<div><strong>Auth:</strong> ' + escapeHtml(auth) + '</div>' : ""}
+      ${issue ? '<div>' + escapeHtml(issue) + '</div>' : ""}
+    </div>
+    <div class="codexStatusActions">
+      ${installButton}
+      ${loginButton}
+      <button type="button" data-grok-action="inspect">Inspect</button>
+      <button type="button" data-grok-action="version">Version</button>
+    </div>
+  `;
+}
+
 function renderModelProviderStatus(providerValue) {
   const provider = normalizeModelProvider(providerValue || state.boardSettings.modelProvider);
   const info = modelProviderInfo(provider);
@@ -314,6 +369,7 @@ function bindBoardSettingsDialog() {
   const sendWithCtrlEnter = document.getElementById("sendWithCtrlEnter");
   const autoScrollMessages = document.getElementById("autoScrollMessages");
   const animateMessages = document.getElementById("animateMessages");
+  const agentRunner = document.getElementById("agentRunner");
   const modelProvider = document.getElementById("modelProvider");
   const voiceShortcut = document.getElementById("voiceShortcut");
   const speechToText = document.getElementById("speechToText");
@@ -331,10 +387,11 @@ function bindBoardSettingsDialog() {
   const exportWorkspacePreset = document.getElementById("exportWorkspacePreset");
   const importWorkspacePreset = document.getElementById("importWorkspacePreset");
   const codexStatusCard = document.getElementById("codexStatusCard");
+  const grokStatusCard = document.getElementById("grokStatusCard");
   const modelProviderStatusCard = document.getElementById("modelProviderStatusCard");
   const renderStatsCard = document.getElementById("renderStatsCard");
 
-  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !modelProvider || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !modelProviderStatusCard || !renderStatsCard) {
+  if (!modal || !closeButton || !cancelButton || !applyButton || !input || !rowInput || !heightMode || !heightInput || !sendWithCtrlEnter || !autoScrollMessages || !animateMessages || !agentRunner || !modelProvider || !voiceShortcut || !speechToText || !localWhisperModel || !localWhisperCaptureId || !localWhisperStopGraceMs || !downloadWhisperRuntime || !downloadWhisperModel || !requestMicrophoneAccess || !openMicrophoneSettings || !chatBackground || !chatBackgroundPicker || !resetChatBackground || !refreshRateLimits || !exportWorkspacePreset || !importWorkspacePreset || !codexStatusCard || !grokStatusCard || !modelProviderStatusCard || !renderStatsCard) {
     return;
   }
 
@@ -348,6 +405,7 @@ function bindBoardSettingsDialog() {
     sendWithCtrlEnter.checked = draft.sendWithCtrlEnter;
     autoScrollMessages.checked = draft.autoScroll;
     animateMessages.checked = draft.animateMessages;
+    agentRunner.value = draft.agentRunner;
     modelProvider.value = draft.modelProvider;
     voiceShortcut.value = draft.voiceShortcut;
     speechToText.value = draft.speechToText;
@@ -355,6 +413,7 @@ function bindBoardSettingsDialog() {
     localWhisperCaptureId.value = draft.localWhisperCaptureId;
     localWhisperStopGraceMs.value = draft.localWhisperStopGraceMs;
     refreshBoardSettingsWhisper();
+    refreshBoardSettingsGrok();
     refreshBoardSettingsModelProvider(draft.modelProvider);
     chatBackground.value = draft.chatBackground;
     chatBackgroundPicker.value = draft.chatBackground;
@@ -418,6 +477,14 @@ function bindBoardSettingsDialog() {
   animateMessages.addEventListener("change", (event) => {
     draft.animateMessages = event.target.checked;
     updateModalControls();
+  });
+
+  agentRunner.addEventListener("change", (event) => {
+    draft.agentRunner = normalizeAgentRunner(event.target.value);
+    updateModalControls();
+    if (draft.agentRunner === "grok") {
+      requestGrokStatus();
+    }
   });
 
   modelProvider.addEventListener("change", (event) => {
@@ -534,6 +601,22 @@ function bindBoardSettingsDialog() {
     }
   });
 
+  grokStatusCard.addEventListener("click", (event) => {
+    const refreshButton = event.target.closest("#refreshGrokStatus");
+    if (refreshButton) {
+      requestGrokStatus();
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-grok-action]");
+    if (actionButton) {
+      vscode.postMessage({
+        type: "openGrokActionTerminal",
+        action: actionButton.dataset.grokAction || ""
+      });
+    }
+  });
+
   modelProviderStatusCard.addEventListener("click", (event) => {
     const refreshButton = event.target.closest("#refreshModelProviderStatus");
     if (refreshButton) {
@@ -573,6 +656,7 @@ function bindBoardSettingsDialog() {
     draft.sendWithCtrlEnter = sendWithCtrlEnter.checked;
     draft.autoScroll = autoScrollMessages.checked;
     draft.animateMessages = animateMessages.checked;
+    draft.agentRunner = normalizeAgentRunner(agentRunner.value);
     draft.modelProvider = normalizeModelProvider(modelProvider.value);
     draft.voiceShortcut = normalizeVoiceShortcut(voiceShortcut.value);
     draft.speechToText = normalizeSpeechToTextEngine(speechToText.value);
@@ -603,6 +687,12 @@ function requestCodexStatus() {
   vscode.postMessage({ type: "requestCodexStatus" });
 }
 
+function requestGrokStatus() {
+  grokStatusLoading = true;
+  refreshBoardSettingsGrok();
+  vscode.postMessage({ type: "requestGrokStatus" });
+}
+
 function requestModelProviderStatus(provider) {
   modelProviderStatusLoading = true;
   refreshBoardSettingsModelProvider(provider);
@@ -625,6 +715,21 @@ function refreshBoardSettingsCodex() {
   card.classList.toggle("missing", overall === "missing");
   card.classList.toggle("checking", overall === "checking");
   card.innerHTML = renderCodexStatus();
+}
+
+function refreshBoardSettingsGrok() {
+  const card = document.getElementById("grokStatusCard");
+  if (!card) {
+    return;
+  }
+
+  const status = grokStatus || {};
+  const overall = grokStatusLoading ? "checking" : (status.overall || "checking");
+  card.classList.toggle("connected", overall === "connected");
+  card.classList.toggle("warning", overall === "needs-login" || overall === "checking");
+  card.classList.toggle("missing", overall === "missing");
+  card.classList.toggle("checking", overall === "checking");
+  card.innerHTML = renderGrokStatus();
 }
 
 function refreshBoardSettingsModelProvider(provider) {

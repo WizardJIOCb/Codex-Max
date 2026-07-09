@@ -24,6 +24,7 @@ Codex Max is a local VS Code extension that opens a workspace tab with a compact
 ## Settings
 
 - `codexMax.codexExecutable`: path or name of the Codex CLI executable.
+- `codexMax.grokExecutable`: path or name of the Grok Build CLI executable.
 - `codexMax.defaultSandbox`: `read-only`, `workspace-write`, or `danger-full-access`.
 - `codexMax.model`: optional model override.
 - `codexMax.maxVisibleChats`: soft visible-card target before the UI warns you.
@@ -43,6 +44,16 @@ Codex Max is a local VS Code extension that opens a workspace tab with a compact
 Use the gear button in the Codex Max toolbar to set how many chats are shown horizontally. The value is stored per workspace and can be set from 1 to 12.
 You can also set how many chat rows are visible vertically. The value is stored per workspace and can be set from 1 to 6.
 Board settings also control chat card height, chat background color, send shortcut behavior, auto-scroll, Codex CLI status, account limits, and voice input.
+
+## Agent Runners
+
+Codex Max normally runs chats through Codex CLI. Board Settings also include `Agent runner`, where you can switch a workspace to `Grok Build CLI`.
+
+- `Codex CLI`: uses `codex exec --json` and the existing Codex/OpenAI login.
+- `Grok Build CLI`: uses xAI Grok Build headless mode with `grok -p ... --output-format streaming-json`.
+- Grok sessions are stored with a `grok-...` session id so they do not collide with Codex thread ids.
+- The Grok status card can open install, login, inspect, and version commands in a VS Code terminal.
+- Install Grok Build with the official xAI installer, then run `grok login` or expose `XAI_API_KEY` to VS Code.
 
 ## Workspaces
 

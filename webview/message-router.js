@@ -16,6 +16,7 @@ window.addEventListener("message", (event) => {
       persist();
       requestRateLimitsOnce();
       requestCodexStatus();
+      requestGrokStatus();
       requestModelProviderStatus(state.boardSettings.modelProvider);
     } catch (error) {
       showFatal(error);
@@ -165,6 +166,13 @@ window.addEventListener("message", (event) => {
     codexStatusLoading = false;
     codexStatus = message.status || null;
     refreshBoardSettingsCodex();
+    return;
+  }
+
+  if (message.type === "grokStatus") {
+    grokStatusLoading = false;
+    grokStatus = message.status || null;
+    refreshBoardSettingsGrok();
     return;
   }
 

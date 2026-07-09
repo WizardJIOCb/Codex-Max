@@ -14,6 +14,7 @@ let state = {
     sendWithCtrlEnter: false,
     autoScroll: true,
     animateMessages: true,
+    agentRunner: "codex",
     modelProvider: "codex",
     voiceShortcut: "alt-v",
     speechToText: "browser",
@@ -76,6 +77,8 @@ let whisperDownloadState = null;
 let whisperPrewarmState = null;
 let codexStatus = null;
 let codexStatusLoading = false;
+let grokStatus = null;
+let grokStatusLoading = false;
 let modelProviderStatus = null;
 let modelProviderStatusLoading = false;
 let microphonePermissionNotice = "";

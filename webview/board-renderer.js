@@ -28,6 +28,7 @@ function render(options) {
   const chatBackground = board.chatBackground;
   const autoScroll = board.autoScroll;
   const animateMessages = board.animateMessages;
+  const agentRunner = board.agentRunner;
   const modelProvider = board.modelProvider;
   const voiceShortcut = board.voiceShortcut;
   const speechToText = board.speechToText;
@@ -43,7 +44,7 @@ function render(options) {
       <main class="board">
         ${renderBoardGrid(board)}
       </main>
-      ${renderBoardSettingsDialog(configuredColumns, configuredRows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, modelProvider, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs)}
+      ${renderBoardSettingsDialog(configuredColumns, configuredRows, maxChatHeight, sendWithCtrlEnter, chatBackground, autoScroll, animateMessages, agentRunner, modelProvider, voiceShortcut, speechToText, localWhisperModel, localWhisperCaptureId, localWhisperStopGraceMs)}
       ${renderChatInfoDialog()}
       ${renderImageViewerDialog()}
     </div>
