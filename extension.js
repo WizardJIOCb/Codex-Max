@@ -672,12 +672,26 @@ class ChatBoardPanel {
     }
 
     if (status.cliOk) {
-      status.authOk = Boolean(process.env.XAI_API_KEY);
-      status.authStatus = status.authOk
-        ? "XAI_API_KEY is available to VS Code"
-        : "Cached login unknown; run Inspect or Login if Grok prompts for auth.";
-      if (!status.authOk) {
-        status.issues.push("XAI_API_KEY is not set. Grok may still work if you already logged in with `grok login`.");
+      const hasApiKey = Boolean(process.env.XAI_API_KEY);
+      try {
+        const modelsResult = await runCodexCommand(executable, ["models"], 8000);
+        const modelsOutput = stripAnsi([modelsResult.stdout, modelsResult.stderr].filter(Boolean).join("\n")).trim();
+        const loginOk = modelsResult.code === 0 && /logged in|available models|default model/i.test(modelsOutput);
+        status.authOk = hasApiKey || loginOk;
+        status.authStatus = hasApiKey
+          ? "XAI_API_KEY is available to VS Code"
+          : (loginOk ? firstNonEmptyLine(modelsOutput) || "Logged in with Grok CLI" : modelsOutput);
+        if (!status.authOk) {
+          status.issues.push(modelsOutput || "Grok CLI is installed, but cached login was not detected.");
+        }
+      } catch (error) {
+        status.authOk = hasApiKey;
+        status.authStatus = hasApiKey
+          ? "XAI_API_KEY is available to VS Code"
+          : "Cached login check failed.";
+        if (!status.authOk) {
+          status.issues.push(error.message || String(error));
+        }
       }
     }
 
@@ -1411,6 +1425,10 @@ function modelProviderInfo(provider) {
 function normalizeAgentRunner(value) {
   const runner = String(value || "codex").toLowerCase();
   return runner === "grok" ? "grok" : "codex";
+}
+
+function firstNonEmptyLine(value) {
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
 }
 
 function quotePowerShellString(value) {

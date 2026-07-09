@@ -25,5 +25,5 @@ const fallbackModelArgs = buildGrokArgs({
   cwd: "C:\\Projects\\codex.max"
 });
 
-assert.deepStrictEqual(fallbackModelArgs.slice(fallbackModelArgs.indexOf("-m"), fallbackModelArgs.indexOf("-m") + 2), ["-m", "grok-4.5"]);
+assert.deepStrictEqual(fallbackModelArgs.slice(fallbackModelArgs.indexOf("-m"), fallbackModelArgs.indexOf("-m") + 2), ["-m", "grok-build"]);
 console.log("Grok runner args smoke-check passed.");

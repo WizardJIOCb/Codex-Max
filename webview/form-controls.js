@@ -53,7 +53,10 @@ function modelChoices(selected) {
   const runner = normalizeAgentRunner(state && state.boardSettings ? state.boardSettings.agentRunner : "codex");
   const provider = normalizeModelProvider(state && state.boardSettings ? state.boardSettings.modelProvider : "codex");
   if (runner === "grok") {
-    const grokModels = [["grok-4.5", "grok-4.5"]];
+    const grokModels = [
+      ["grok-build", "grok-build"],
+      ["grok-4.5", "grok-4.5"]
+    ];
     if (selected && !grokModels.some((item) => item[0] === selected) && /^grok-/i.test(selected)) {
       grokModels.push([selected, selected]);
     }
