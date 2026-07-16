@@ -185,19 +185,23 @@ function extractLimitResetCredits(value) {
         /(available|remaining|left|count|credits|requests|manual)/i.test(pathText);
 
       if (looksLikeManualReset && Number.isFinite(Number(child))) {
-        candidates.push({
-          score: manualResetScore(normalizedPath),
-          value: Number(child)
-        });
+        const value = Number(child);
+        if (isPlausibleManualResetCount(value)) {
+          candidates.push({
+            score: manualResetScore(normalizedPath),
+            value
+          });
+        }
       }
 
       if (typeof child === "string") {
-        const match = child.match(/(?:available|remaining|left)\D*(\d+)\D*(?:reset|resets)/i)
-          || child.match(/(?:reset|resets)\D*(\d+)/i);
-        if (match) {
+        const match = child.match(/(?:available|remaining|left|доступн\w*|остал\w*)\D*(\d+)\D*(?:reset|resets|сброс\w*)/i)
+          || child.match(/(?:reset|resets|сброс\w*)\D*(?:available|remaining|left|доступн\w*|остал\w*)\D*(\d+)/i);
+        const value = match ? Number(match[1]) : NaN;
+        if (isPlausibleManualResetCount(value)) {
           candidates.push({
             score: manualResetScore(normalizedPath) + 1,
-            value: Number(match[1])
+            value
           });
         }
       }
@@ -219,6 +223,10 @@ function extractLimitResetCredits(value) {
 
   useful.sort((a, b) => b.score - a.score);
   return String(useful[0].value);
+}
+
+function isPlausibleManualResetCount(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 50;
 }
 
 function manualResetScore(normalizedPath) {

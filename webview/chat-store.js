@@ -88,6 +88,7 @@ function updateChat(chatId, updater, options) {
     return;
   }
 
+  const bottomLocked = lockChatToBottomIfPinned(chatId);
   updater(chat);
   chat.updatedAt = Date.now();
   syncActiveWorkspaceChat(chatId);
@@ -110,6 +111,9 @@ function updateChat(chatId, updater, options) {
     renderChatMessagesPanel(chatId);
   } else {
     scheduleChatCardRender(chatId);
+  }
+  if (bottomLocked) {
+    reinforceChatBottomLocks([chatId]);
   }
   persist({ skipFullSync: true });
 }
@@ -179,6 +183,7 @@ function flushBatchedChatUpdates() {
   }
 
   if (renderModes.size) {
+    reinforceChatBottomLocks(renderModes.keys());
     refreshBoardUsage();
     updateVoiceButtons();
     syncDurationTimer();

@@ -74,11 +74,16 @@ function restoreMessageScroll(chatId, messages, previous, autoScroll, signature)
     return;
   }
 
+  if (autoScroll && previous && previous.atBottom && !chatAutoScrollPaused.has(chatId)) {
+    startChatBottomLock(chatId, messages);
+  }
+
   applyMessageScroll(chatId, messages, previous, autoScroll, signature);
   requestAnimationFrame(() => {
-    if (chatStickyScroll.has(chatId) && !chatAutoScrollPaused.has(chatId)) {
-      messages.scrollTop = messages.scrollHeight;
-      rememberMessageScroll(chatId, messages, signature);
+    if (chatBottomLocks.has(chatId) && !chatAutoScrollPaused.has(chatId)) {
+      applyChatBottomLock(chatId);
+    } else if (chatStickyScroll.has(chatId) && !chatAutoScrollPaused.has(chatId)) {
+      setMessagesToBottom(chatId, messages, signature);
     } else if (chatAutoScrollPaused.has(chatId)) {
       restorePausedScrollTop(chatId, messages);
       rememberMessageScroll(chatId, messages, signature);
@@ -120,6 +125,7 @@ function bindMessageScrollControls(chatId, messages) {
 function pauseChatAutoScroll(chatId, messages) {
   chatAutoScrollPaused.add(chatId);
   chatStickyScroll.delete(chatId);
+  stopChatBottomLock(chatId);
   if (messages) {
     chatPausedScrollTop.set(chatId, messages.scrollTop);
   }
@@ -132,10 +138,9 @@ function resumeChatAutoScroll(chatId) {
 
 function stickChatToBottom(chatId, messages) {
   resumeChatAutoScroll(chatId);
-  chatStickyScroll.add(chatId);
+  startChatBottomLock(chatId, messages);
   if (messages) {
-    messages.scrollTop = messages.scrollHeight;
-    rememberMessageScroll(chatId, messages, undefined, false);
+    setMessagesToBottom(chatId, messages, undefined);
   }
 }
 
@@ -160,8 +165,8 @@ function applyMessageScroll(chatId, messages, previous, autoScroll, signature) {
   const shouldStickToBottom = !paused && (alreadySticky || !previous || (autoScroll && previous.atBottom && contentChanged));
   messages.dataset.scrollSignature = currentSignature;
   if (shouldStickToBottom) {
-    chatStickyScroll.add(chatId);
-    messages.scrollTop = messages.scrollHeight;
+    startChatBottomLock(chatId, messages);
+    setMessagesToBottom(chatId, messages, currentSignature);
   } else if (paused) {
     chatStickyScroll.delete(chatId);
     restorePausedScrollTop(chatId, messages);
@@ -172,6 +177,189 @@ function applyMessageScroll(chatId, messages, previous, autoScroll, signature) {
   }
 
   rememberMessageScroll(chatId, messages, currentSignature);
+}
+
+function lockChatToBottomIfPinned(chatId) {
+  const board = normalizeBoardSettings(state.boardSettings);
+  if (!board.autoScroll || !chatId || chatAutoScrollPaused.has(chatId)) {
+    return false;
+  }
+
+  const messages = chatMessagesElement(chatId);
+  if (!messages) {
+    return false;
+  }
+
+  if (!isScrolledToBottom(messages) && !chatStickyScroll.has(chatId)) {
+    return false;
+  }
+
+  startChatBottomLock(chatId, messages);
+  return true;
+}
+
+function lockChatsToBottomIfPinned(chatIds) {
+  const locked = new Set();
+  for (const chatId of chatIds || []) {
+    if (lockChatToBottomIfPinned(chatId)) {
+      locked.add(chatId);
+    }
+  }
+  return locked;
+}
+
+function reinforceChatBottomLocks(chatIds) {
+  for (const chatId of chatIds || []) {
+    if (chatBottomLocks.has(chatId)) {
+      scheduleChatBottomLock(chatId);
+    }
+  }
+}
+
+function startChatBottomLock(chatId, messages, durationMs) {
+  if (!chatId || chatAutoScrollPaused.has(chatId)) {
+    return;
+  }
+
+  const until = Date.now() + (Number(durationMs) || 1600);
+  chatBottomLocks.set(chatId, Math.max(chatBottomLocks.get(chatId) || 0, until));
+  chatStickyScroll.add(chatId);
+  observeChatBottomLock(chatId, messages || chatMessagesElement(chatId));
+  clearChatBottomLockTimers(chatId);
+  scheduleChatBottomLock(chatId);
+}
+
+function scheduleChatBottomLock(chatId) {
+  if (!chatId || chatBottomLockFrames.has(chatId)) {
+    return;
+  }
+
+  const frame = requestAnimationFrame(() => {
+    chatBottomLockFrames.delete(chatId);
+    applyChatBottomLock(chatId);
+  });
+  chatBottomLockFrames.set(chatId, frame);
+
+  if (!chatBottomLockTimeouts.has(chatId)) {
+    const delays = [32, 96, 180, 360, 720, 1280];
+    chatBottomLockTimeouts.set(chatId, delays.map((delay) => {
+      return setTimeout(() => applyChatBottomLock(chatId), delay);
+    }));
+  }
+}
+
+function applyChatBottomLock(chatId) {
+  const until = chatBottomLocks.get(chatId) || 0;
+  if (!until || chatAutoScrollPaused.has(chatId)) {
+    stopChatBottomLock(chatId);
+    return;
+  }
+
+  if (Date.now() > until) {
+    stopChatBottomLock(chatId);
+    return;
+  }
+
+  const messages = chatMessagesElement(chatId);
+  if (!messages) {
+    return;
+  }
+
+  observeChatBottomLock(chatId, messages);
+  setMessagesToBottom(chatId, messages, messages.dataset.scrollSignature || "");
+}
+
+function observeChatBottomLock(chatId, messages) {
+  if (!chatId || !messages) {
+    return;
+  }
+
+  const existing = chatBottomLockObservers.get(chatId);
+  if (existing && existing.messages === messages) {
+    return;
+  }
+  disconnectChatBottomLockObserver(chatId);
+
+  const mutationObserver = typeof MutationObserver === "function"
+    ? new MutationObserver(() => scheduleChatBottomLock(chatId))
+    : null;
+  if (mutationObserver) {
+    mutationObserver.observe(messages, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+
+  const resizeObserver = typeof ResizeObserver === "function"
+    ? new ResizeObserver(() => scheduleChatBottomLock(chatId))
+    : null;
+  if (resizeObserver) {
+    resizeObserver.observe(messages);
+  }
+
+  chatBottomLockObservers.set(chatId, {
+    messages,
+    mutationObserver,
+    resizeObserver
+  });
+}
+
+function stopChatBottomLock(chatId) {
+  if (!chatId) {
+    return;
+  }
+
+  chatBottomLocks.delete(chatId);
+  chatStickyScroll.delete(chatId);
+  disconnectChatBottomLockObserver(chatId);
+
+  const frame = chatBottomLockFrames.get(chatId);
+  if (frame) {
+    cancelAnimationFrame(frame);
+    chatBottomLockFrames.delete(chatId);
+  }
+
+  clearChatBottomLockTimers(chatId);
+}
+
+function clearChatBottomLockTimers(chatId) {
+  const timeouts = chatBottomLockTimeouts.get(chatId);
+  if (Array.isArray(timeouts)) {
+    for (const timer of timeouts) {
+      clearTimeout(timer);
+    }
+  }
+  chatBottomLockTimeouts.delete(chatId);
+}
+
+function disconnectChatBottomLockObserver(chatId) {
+  const observer = chatBottomLockObservers.get(chatId);
+  if (!observer) {
+    return;
+  }
+
+  if (observer.mutationObserver) {
+    observer.mutationObserver.disconnect();
+  }
+  if (observer.resizeObserver) {
+    observer.resizeObserver.disconnect();
+  }
+  chatBottomLockObservers.delete(chatId);
+}
+
+function chatMessagesElement(chatId) {
+  const card = document.querySelector('[data-chat-id="' + chatId + '"]');
+  return card ? card.querySelector(".messages") : null;
+}
+
+function setMessagesToBottom(chatId, messages, signature) {
+  if (!messages) {
+    return;
+  }
+
+  messages.scrollTop = messages.scrollHeight;
+  rememberMessageScroll(chatId, messages, signature, false);
 }
 
 function rememberMessageScroll(chatId, messages, signature, userInitiated) {

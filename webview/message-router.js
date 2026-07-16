@@ -357,11 +357,14 @@ function flushIncomingChatMessages() {
   pendingIncomingChatMessages = [];
   countRenderStat("incomingBatches");
   countRenderStat("incomingMessages", messages.length);
+  const affectedChatIds = new Set(messages.map((message) => message.chatId).filter(Boolean));
+  const bottomLockedChatIds = lockChatsToBottomIfPinned(affectedChatIds);
   withBatchedChatUpdates(() => {
     for (const message of messages) {
       applyIncomingChatMessage(message);
     }
   });
+  reinforceChatBottomLocks(bottomLockedChatIds);
 }
 
 function applyIncomingChatMessage(message) {

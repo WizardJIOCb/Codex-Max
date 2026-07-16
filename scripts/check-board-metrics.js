@@ -53,4 +53,30 @@ assert(fractional, "Expected fractional account usage to be parsed");
 assert.strictEqual(fractional.fiveHourLabel, "99%");
 assert.strictEqual(fractional.weeklyLabel, "48%");
 
+const noManualResets = context.boardUsageInfo([], {
+  rateLimits: {
+    primary: {
+      usedPercent: 11,
+      windowDurationMins: 300,
+      resetsAt: 1783315437
+    },
+    secondary: {
+      usedPercent: 7,
+      windowDurationMins: 10080,
+      resetsAt: 1783801112
+    }
+  },
+  diagnostic: "reset 5437 is an automatic reset timestamp fragment, not a manual reset credit count"
+});
+
+assert.strictEqual(noManualResets.limitResetLabel, "n/a");
+
+const russianManualResets = context.boardUsageInfo([], {
+  account: {
+    notice: "Сбрасывайте лимиты и продолжайте работать без перерывов. Доступно 2 сброса."
+  }
+});
+
+assert.strictEqual(russianManualResets.limitResetLabel, "2");
+
 console.log("Board metrics smoke-check passed.");
